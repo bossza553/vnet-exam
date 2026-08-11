@@ -338,7 +338,7 @@ function renderQ(){
   stopSpeech();
   const audio = parseAudio(q.q);
   $("q-text").textContent = `${S.i+1}. ${audio ? audio.question : q.q}`;
-  renderAudioBox(audio);
+  renderAudioBox(audio, q);
   $("q-expl").innerHTML = "";
   $("nextbtn").classList.add("hidden");
   $("skipbtn").classList.toggle("hidden", S.mode!=="exam");
@@ -370,12 +370,30 @@ function parseAudio(text){
   return m ? {script:m[1].trim(), question:m[2].trim()} : null;
 }
 let currentScript = null;
+let currentAudioSrc = null;   // mp3 for this question (real voice), if available
+let audioEl = null;
 function stopSpeech(){
   if("speechSynthesis" in window) speechSynthesis.cancel();
+  if(audioEl){ audioEl.pause(); audioEl = null; }
   document.querySelectorAll(".playbtn").forEach(b=>b.classList.remove("playing"));
 }
 let currentUtterance = null; // keep a reference so Chrome doesn't GC it mid-speech
 function playAudio(){
+  stopSpeech();
+  const btnA = document.querySelector(".playbtn");
+  if(currentAudioSrc){
+    const src = currentAudioSrc.startsWith("data:") ? currentAudioSrc
+              : (window.AUDIO_BASE || "audio/") + currentAudioSrc;
+    audioEl = new Audio(src);
+    audioEl.onplay = ()=>btnA && btnA.classList.add("playing");
+    audioEl.onended = ()=>btnA && btnA.classList.remove("playing");
+    audioEl.onerror = ()=>{ btnA && btnA.classList.remove("playing"); speakScript(); };
+    audioEl.play().catch(()=>speakScript());
+    return;
+  }
+  speakScript();
+}
+function speakScript(){
   if(!("speechSynthesis" in window) || !currentScript) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(currentScript);
@@ -394,11 +412,12 @@ function playAudio(){
 function toggleScript(){
   const s = $("q-script"); if(s) s.classList.toggle("hidden");
 }
-function renderAudioBox(audio){
+function renderAudioBox(audio, q){
   currentScript = audio ? audio.script : null;
+  currentAudioSrc = (audio && q && q.audio) ? q.audio : null;
   const box = $("q-audio");
   if(!audio){ box.innerHTML = ""; return; }
-  const ttsOK = "speechSynthesis" in window;
+  const ttsOK = currentAudioSrc !== null || "speechSynthesis" in window;
   box.innerHTML = `<div class="audio-box">
     <div class="audio-row">
       <button class="playbtn" onclick="playAudio()">▶️ ฟังเสียง</button>
