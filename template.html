@@ -736,6 +736,28 @@ const SB_URL = "https://npobptbcnxsonbevfgrr.supabase.co";
 const SB_KEY = "sb_publishable_QrGVV8UQ5OKEez3NKduI2g_5bfg7ksn";
 const ONLINE_GATE = (location.protocol === "https:" || location.hostname === "localhost") && !!window.supabase;
 let sb = null, acct = {licensed:false, is_admin:false, email:null};
+let justLoggedIn = false, hbTimer = null;
+function getSid(){
+  let s = localStorage.getItem("vnet-sid");
+  if(!s){
+    s = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)+"-"+Date.now());
+    localStorage.setItem("vnet-sid", s);
+  }
+  return s;
+}
+async function heartbeat(claim){
+  try{
+    const {data,error} = await sb.rpc("session_heartbeat",{sid:getSid(), claim:!!claim});
+    if(error) return "ok"; /* fail open: never lock users out on network/setup issues */
+    return data;
+  }catch(e){ return "ok"; }
+}
+async function kickSession(){
+  if(hbTimer){ clearInterval(hbTimer); hbTimer=null; }
+  sessionStorage.setItem("vnet-kicked","1");
+  try{ await sb.auth.signOut(); }catch(e){}
+  location.reload();
+}
 
 /* --- legacy offline key math (still used for file:// copies) --- */
 const LIC_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -790,7 +812,18 @@ async function gate(){
       return;
     }
     acct = {licensed:!!st.licensed, is_admin:!!st.is_admin, email:st.email||session.user.email};
-    if(acct.licensed || acct.is_admin){ unlockOnline(); }
+    if(acct.is_admin){ unlockOnline(); return; }
+    if(acct.licensed){
+      const hb = await heartbeat(justLoggedIn);
+      justLoggedIn = false;
+      if(hb === "taken"){ kickSession(); return; }
+      unlockOnline();
+      if(hbTimer) clearInterval(hbTimer);
+      hbTimer = setInterval(async ()=>{
+        const s = await heartbeat(false);
+        if(s === "taken") kickSession();
+      }, 60000);
+    }
     else { renderActivate(); showLockUI(); }
   } finally { gateBusy=false; }
 }
@@ -820,6 +853,10 @@ function renderAuth(tab){
     <div class="lockmsg" id="acct-msg"></div>
     <button class="btn primary" style="width:100%" onclick="doAuth('${tab}')">${tab==="login"?"เข้าสู่ระบบ ✨":"สมัครสมาชิก \U0001F331"}</button>`;
   const p=$("f-pass"); p.addEventListener("keydown",e=>{if(e.key==="Enter")doAuth(tab);});
+  if(sessionStorage.getItem("vnet-kicked")){
+    sessionStorage.removeItem("vnet-kicked");
+    setMsg("acct-msg","บัญชีนี้ถูกเข้าสู่ระบบจากเครื่องอื่น ระบบจึงออกจากระบบเครื่องนี้อัตโนมัติ (1 บัญชีใช้ได้ทีละ 1 เครื่อง)","err");
+  }
 }
 function authErrTh(m){
   m = String(m||"");
@@ -845,6 +882,7 @@ async function doAuth(kind){
     } else {
       const {error} = await sb.auth.signInWithPassword({email, password:pass});
       if(error) throw error;
+      justLoggedIn = true; /* explicit login claims the single active session */
     }
     /* onAuthStateChange -> gate() */
   }catch(e){ setMsg("acct-msg", authErrTh(e.message), "err"); }
