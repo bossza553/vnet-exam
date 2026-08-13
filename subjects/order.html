@@ -790,7 +790,7 @@ async function gate(){
       return;
     }
     acct = {licensed:!!st.licensed, is_admin:!!st.is_admin, email:st.email||session.user.email};
-    if(acct.licensed){ unlockOnline(); }
+    if(acct.licensed || acct.is_admin){ unlockOnline(); }
     else { renderActivate(); showLockUI(); }
   } finally { gateBusy=false; }
 }
