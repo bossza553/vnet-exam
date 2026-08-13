@@ -200,16 +200,50 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .audio-hint{color:var(--muted);font-size:.78rem;margin-top:8px}
 
 @media(max-width:520px){ .hero h1{font-size:1.6rem} .qtext{font-size:1.02rem} }
+
+/* ===== license lock ===== */
+.lock{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(51,65,92,.045) 31px 32px),var(--paper)}
+.lockcard{background:var(--card);border:2.5px solid var(--ink);border-radius:18px;box-shadow:8px 10px 0 rgba(51,65,92,.25);max-width:420px;width:100%;padding:30px 26px;text-align:center;transform:rotate(-.4deg)}
+.lockcard h2{font-family:var(--display);font-size:1.4rem;margin:10px 0 4px}
+.lockcard>p{color:var(--ink-soft);font-size:.9rem;margin-bottom:18px}
+.keyinput{width:100%;padding:12px 14px;border:2px solid var(--ink);border-radius:10px;font-size:1.02rem;text-align:center;letter-spacing:.1em;background:var(--card2);color:var(--ink)}
+.keyinput:focus{outline:3px solid var(--marker)}
+.lockmsg{min-height:24px;font-size:.86rem;margin-top:10px;font-weight:700}
+.lockmsg.err{color:var(--bad)} .lockmsg.ok{color:var(--good)}
+.keylist{width:100%;height:190px;border:2px solid var(--line);border-radius:10px;padding:10px;font-family:monospace;font-size:.92rem;background:var(--card2);color:var(--ink);white-space:pre;overflow:auto;margin-top:6px}
+.adminrow{display:flex;gap:8px;align-items:center;margin:14px 0 4px;flex-wrap:wrap;font-size:.9rem}
+.adminrow select{padding:6px 10px}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="lock" class="lock hidden">
+  <div class="lockcard">
+    <div style="font-size:2.6rem">🔐</div>
+    <h2>ปลดล็อกการใช้งาน</h2>
+    <p>กรอกรหัส CD-Key ที่ได้รับจากผู้ดูแล<br>เพื่อเริ่มใช้งานแอปฝึกทำข้อสอบ</p>
+    <input id="keyfield" class="keyinput" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+    <input id="pwfield" class="keyinput hidden" type="password" placeholder="รหัสผ่านผู้ดูแล" style="margin-top:10px">
+    <div class="lockmsg" id="lockmsg"></div>
+    <button class="btn primary" style="width:100%;margin-top:6px" onclick="submitKey()">ปลดล็อก ✨</button>
+    <div id="gsi-wrap" class="hidden" style="margin-top:14px">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">— หรือสำหรับผู้ดูแลระบบ —</div>
+      <div id="gsi-btn" style="display:flex;justify-content:center"></div>
+    </div>
+    <p style="margin-top:16px;font-size:.78rem;color:var(--muted)">ยังไม่มีรหัส? ติดต่อผู้ดูแลระบบเพื่อขอรหัสใช้งาน</p>
+  </div>
+</div>
+<div class="wrap hidden" id="app">
 
   <!-- ============ HOME ============ -->
   <div id="home">
     <div class="hero">
       <h1>🤝 การทำงานเป็นทีม</h1>
       <p>Teamwork • รวมชุด 1+2+เสริม • 80 ข้อ พร้อมเฉลยและคำอธิบายทุกข้อ</p>
+    </div>
+    <div id="adminbar" class="hidden" style="text-align:center;margin-bottom:16px">
+      <button class="topbtn" onclick="openAdmin()">🔑 จัดการรหัส CD-Key</button>
+      <button class="topbtn" onclick="lockDevice()">🔒 ออกจากระบบเครื่องนี้</button>
     </div>
     <div class="statbar">
       <div class="stat"><b id="st-total">540</b><span>ข้อสอบทั้งหมด</span></div>
@@ -677,7 +711,139 @@ document.addEventListener("keydown", e=>{
   } else if(e.key==="Enter" && !$("nextbtn").classList.contains("hidden")){ nextQ(); }
 });
 
-renderHome();
+/* ===== CD-key license ===== */
+const LIC_ALPH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const LIC_SALT = "vnet-tutor-2569";
+const ADMIN_EMAIL = "bossza9000@gmail.com";
+const ADMIN_PW_HASH = 2263471909;
+function fnv(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h>>>0;}
+function keyChecksum(body){
+  const v=(fnv(LIC_SALT+"|"+body)^(fnv(body+"|"+LIC_SALT)<<7))>>>0;
+  let out="";for(let i=0;i<4;i++) out+=LIC_ALPH[(v>>>(i*5))&31];
+  return out;
+}
+function normKey(s){return s.toUpperCase().replace(/[^A-Z0-9]/g,"");}
+function validKey(s){
+  const k=normKey(s);
+  if(k.length!==16) return false;
+  for(const ch of k) if(!LIC_ALPH.includes(ch)) return false;
+  return keyChecksum(k.slice(0,12))===k.slice(12);
+}
+function makeKey(){
+  let body="";for(let i=0;i<12;i++) body+=LIC_ALPH[Math.floor(Math.random()*LIC_ALPH.length)];
+  return (body+keyChecksum(body)).match(/.{4}/g).join("-");
+}
+function isLicensed(){const l=localStorage.getItem("vnet-license");return l==="admin"||(!!l&&validKey(l));}
+function isAdmin(){return localStorage.getItem("vnet-license")==="admin";}
+function unlockUI(){
+  $("lock").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  if(isAdmin()&&$("adminbar")) $("adminbar").classList.remove("hidden");
+  renderHome();
+}
+function initLicense(){
+  if(isLicensed()){unlockUI();return;}
+  $("lock").classList.remove("hidden");
+  $("keyfield").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
+  $("pwfield").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
+  initGoogle();
+}
+/* ===== Google Sign-In (admin shortcut) ===== */
+const GOOGLE_CLIENT_ID = "PASTE_CLIENT_ID_HERE"; // set to a real client id to enable the button
+function initGoogle(){
+  if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf(".apps.googleusercontent.com")<0) return;
+  if(location.protocol!=="https:" && location.hostname!=="localhost") return; // GIS needs https
+  const s=document.createElement("script");
+  s.src="https://accounts.google.com/gsi/client"; s.async=true;
+  s.onload=()=>{
+    try{
+      google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID, callback:onGoogleCred});
+      google.accounts.id.renderButton($("gsi-btn"),{theme:"outline",size:"large",text:"signin_with",shape:"pill"});
+      $("gsi-wrap").classList.remove("hidden");
+    }catch(e){}
+  };
+  document.head.appendChild(s);
+}
+function onGoogleCred(resp){
+  const msg=$("lockmsg");
+  try{
+    const payload=JSON.parse(atob(resp.credential.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+    if(payload.email && payload.email.toLowerCase()===ADMIN_EMAIL && payload.email_verified){
+      localStorage.setItem("vnet-license","admin");
+      localStorage.setItem("vnet-admin-name",payload.name||"");
+      msg.className="lockmsg ok";msg.textContent="ยินดีต้อนรับผู้ดูแลระบบ 🎉";
+      setTimeout(unlockUI,400);
+    } else {
+      msg.className="lockmsg err";
+      msg.textContent="บัญชีนี้ไม่ใช่ผู้ดูแลระบบ — กรอกรหัส CD-Key เพื่อใช้งาน";
+    }
+  }catch(e){
+    msg.className="lockmsg err";msg.textContent="เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง";
+  }
+}
+function submitKey(){
+  const raw=$("keyfield").value.trim(), msg=$("lockmsg");
+  if(raw.toLowerCase()===ADMIN_EMAIL){
+    $("pwfield").classList.remove("hidden");
+    const pw=$("pwfield").value;
+    if(!pw){msg.className="lockmsg";msg.textContent="กรอกรหัสผ่านผู้ดูแลด้านล่าง";$("pwfield").focus();return;}
+    if(fnv("pw|"+LIC_SALT+"|"+pw)===ADMIN_PW_HASH){
+      localStorage.setItem("vnet-license","admin");
+      msg.className="lockmsg ok";msg.textContent="ยินดีต้อนรับผู้ดูแลระบบ 🎉";
+      setTimeout(unlockUI,400);
+    } else {
+      msg.className="lockmsg err";msg.textContent="รหัสผ่านไม่ถูกต้อง";
+      $("pwfield").classList.add("shake");setTimeout(()=>$("pwfield").classList.remove("shake"),400);
+    }
+    return;
+  }
+  if(validKey(raw)){
+    localStorage.setItem("vnet-license",normKey(raw));
+    msg.className="lockmsg ok";msg.textContent="ปลดล็อกสำเร็จ! 🎉";
+    sndWin();confetti();
+    setTimeout(unlockUI,700);
+  } else {
+    msg.className="lockmsg err";msg.textContent="รหัสไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง";
+    $("keyfield").classList.add("shake");setTimeout(()=>$("keyfield").classList.remove("shake"),400);
+    sndBad();
+  }
+}
+function lockDevice(){
+  if(!confirm("ออกจากระบบและล็อกเครื่องนี้? (สถิติคะแนนจะไม่หาย)"))return;
+  localStorage.removeItem("vnet-license");
+  location.reload();
+}
+function openAdmin(){
+  $("modal-root").innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeSetup()">
+    <div class="modal">
+      <h2>🔑 จัดการรหัส CD-Key</h2>
+      <div class="sub">ผู้ดูแล: ${ADMIN_EMAIL}</div>
+      <div class="adminrow">
+        <span>สร้างรหัสใหม่</span>
+        <select id="keycount" class="opt"><option>5</option><option selected>10</option><option>20</option><option>50</option></select>
+        <span>ชุด</span>
+        <button class="btn primary" style="flex:0 0 auto;padding:8px 18px" onclick="genKeys()">สร้าง 🎲</button>
+      </div>
+      <textarea id="keylist" class="keylist" readonly placeholder="กด สร้าง เพื่อออกรหัสชุดใหม่ แล้วคัดลอกไปแจกได้เลย"></textarea>
+      <div class="mrow">
+        <button class="btn ghost" onclick="closeSetup()">ปิด</button>
+        <button class="btn primary" onclick="copyKeys()">คัดลอกทั้งหมด 📋</button>
+      </div>
+      <p style="margin-top:12px;font-size:.76rem;color:var(--muted)">รหัส 1 ชุดปลดล็อกได้ทุกเครื่องที่กรอก • รหัสไม่หมดอายุ • เก็บรายชื่อผู้รับไว้เองเพื่อติดตามการแจก</p>
+    </div>
+  </div>`;
+}
+function genKeys(){
+  $("keylist").value=Array.from({length:+$("keycount").value},()=>makeKey()).join("\n");
+}
+function copyKeys(){
+  const t=$("keylist");if(!t.value)return;
+  t.select();try{document.execCommand("copy")}catch(e){}
+  if(navigator.clipboard)navigator.clipboard.writeText(t.value).catch(()=>{});
+  sndClick();
+}
+initLicense();
 </script>
 </body>
 </html>
