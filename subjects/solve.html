@@ -444,6 +444,7 @@ function startQuiz(){
   });
   S = { qs:pool, i:0, correct:0, streak:0, maxStreak:0, fifty:3, mode:setup.mode,
         subj:setup.subj, start:Date.now(), done:false };
+  if(window.__hbCheck) window.__hbCheck(); /* instant session check on quiz start */
   $("home").classList.add("hidden"); $("result").classList.add("hidden");
   $("quiz").classList.remove("hidden");
   $("mutebtn").textContent = muted?"🔇":"🔊";
@@ -819,10 +820,13 @@ async function gate(){
       if(hb === "taken"){ kickSession(); return; }
       unlockOnline();
       if(hbTimer) clearInterval(hbTimer);
-      hbTimer = setInterval(async ()=>{
+      const hbCheck = async ()=>{
         const s = await heartbeat(false);
         if(s === "taken") kickSession();
-      }, 60000);
+      };
+      hbTimer = setInterval(hbCheck, 20000);
+      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) hbCheck(); });
+      window.__hbCheck = hbCheck;
     }
     else { renderActivate(); showLockUI(); }
   } finally { gateBusy=false; }
