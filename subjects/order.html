@@ -737,7 +737,7 @@ const SB_URL = "https://npobptbcnxsonbevfgrr.supabase.co";
 const SB_KEY = "sb_publishable_QrGVV8UQ5OKEez3NKduI2g_5bfg7ksn";
 const ONLINE_GATE = (location.protocol === "https:" || location.hostname === "localhost") && !!window.supabase;
 let sb = null, acct = {licensed:false, is_admin:false, email:null};
-let justLoggedIn = false, hbTimer = null;
+let justLoggedIn = false, hbTimer = null, recoveryMode = false;
 function getSid(){
   let s = localStorage.getItem("vnet-sid");
   if(!s){
@@ -792,11 +792,22 @@ function initAccount(){
   sb = window.supabase.createClient(SB_URL, SB_KEY);
   $("lock-legacy").classList.add("hidden");
   $("lock-account").classList.remove("hidden");
-  sb.auth.onAuthStateChange(()=>{ gate(); });
+  sb.auth.onAuthStateChange((event)=>{
+    if(event === "PASSWORD_RECOVERY"){
+      recoveryMode = true;
+      $("lock-legacy").classList.add("hidden");
+      $("lock-account").classList.remove("hidden");
+      renderNewPassword();
+      showLockUI();
+      return;
+    }
+    gate();
+  });
   gate();
 }
 let gateBusy=false;
 async function gate(){
+  if(recoveryMode) return;
   if(gateBusy) return; gateBusy=true;
   try{
     const {data:{session}} = await sb.auth.getSession();
@@ -836,7 +847,7 @@ function unlockOnline(){
   const bar=$("adminbar");
   if(bar){
     bar.classList.remove("hidden");
-    $("acct-email").textContent = "\U0001F464 "+(acct.email||"");
+    $("acct-email").textContent = "👤 "+(acct.email||"");
     $("admin-keys-btn").classList.toggle("hidden", !acct.is_admin);
   }
 }
@@ -855,7 +866,9 @@ function renderAuth(tab){
     <input id="f-email" class="field" type="email" placeholder="อีเมล" autocomplete="username">
     <input id="f-pass" class="field" type="password" placeholder="รหัสผ่าน (6 ตัวขึ้นไป)" autocomplete="${tab==="signup"?"new-password":"current-password"}">
     <div class="lockmsg" id="acct-msg"></div>
-    <button class="btn primary" style="width:100%" onclick="doAuth('${tab}')">${tab==="login"?"เข้าสู่ระบบ ✨":"สมัครสมาชิก \U0001F331"}</button>`;
+    <button class="btn primary" style="width:100%" onclick="doAuth('${tab}')">${tab==="login"?"เข้าสู่ระบบ ✨":"สมัครสมาชิก 🌱"}</button>
+    ${tab==="login"?'<button class="linky" onclick="doForgot()">ลืมรหัสผ่าน?</button>':""}
+    <p style="margin-top:12px;font-size:.72rem;color:var(--muted)">การใช้งานถือว่ายอมรับ <a href="${legalBase()}terms.html" target="_blank" style="color:var(--blue)">ข้อกำหนดการใช้งาน</a> และ <a href="${legalBase()}privacy.html" target="_blank" style="color:var(--blue)">นโยบายความเป็นส่วนตัว</a></p>`;
   const p=$("f-pass"); p.addEventListener("keydown",e=>{if(e.key==="Enter")doAuth(tab);});
   if(sessionStorage.getItem("vnet-kicked")){
     sessionStorage.removeItem("vnet-kicked");
@@ -891,6 +904,41 @@ async function doAuth(kind){
     /* onAuthStateChange -> gate() */
   }catch(e){ setMsg("acct-msg", authErrTh(e.message), "err"); }
 }
+function legalBase(){ return location.pathname.includes("/subjects/") ? "../" : ""; }
+async function doForgot(){
+  const email=($("f-email").value||"").trim().toLowerCase();
+  if(!email){ setMsg("acct-msg","กรอกอีเมลของคุณในช่องด้านบนก่อน แล้วกด ลืมรหัสผ่าน อีกครั้ง","err"); return; }
+  setMsg("acct-msg","กำลังส่งลิงก์รีเซ็ต...");
+  try{
+    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname});
+    if(error) throw error;
+    setMsg("acct-msg","ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว — เช็คกล่องจดหมาย (และถังสแปม)","ok");
+  }catch(e){
+    const m=String(e.message||"");
+    if(m.includes("rate limit")||m.includes("Too many")) setMsg("acct-msg","ส่งอีเมลถี่เกินไป กรุณารอสักครู่แล้วลองใหม่","err");
+    else setMsg("acct-msg","ส่งไม่สำเร็จ: "+m,"err");
+  }
+}
+function renderNewPassword(){
+  $("acct-body").innerHTML = `
+    <p style="color:var(--ink-soft);font-size:.88rem;margin:6px 0 10px">ตั้งรหัสผ่านใหม่ของคุณ</p>
+    <input id="f-new1" class="field" type="password" placeholder="รหัสผ่านใหม่ (6 ตัวขึ้นไป)" autocomplete="new-password">
+    <input id="f-new2" class="field" type="password" placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง" autocomplete="new-password">
+    <div class="lockmsg" id="acct-msg"></div>
+    <button class="btn primary" style="width:100%" onclick="doSetNewPassword()">บันทึกรหัสผ่านใหม่ ✅</button>`;
+}
+async function doSetNewPassword(){
+  const a=$("f-new1").value, b=$("f-new2").value;
+  if(a.length<6){ setMsg("acct-msg","รหัสผ่านต้องยาว 6 ตัวขึ้นไป","err"); return; }
+  if(a!==b){ setMsg("acct-msg","รหัสผ่านสองช่องไม่ตรงกัน","err"); return; }
+  try{
+    const {error} = await sb.auth.updateUser({password:a});
+    if(error) throw error;
+    setMsg("acct-msg","เปลี่ยนรหัสผ่านสำเร็จ! กำลังพาเข้าสู่ระบบ...","ok");
+    recoveryMode = false;
+    setTimeout(gate, 800);
+  }catch(e){ setMsg("acct-msg","เกิดข้อผิดพลาด: "+e.message,"err"); }
+}
 function renderActivate(){
   $("acct-body").innerHTML = `
     <p style="color:var(--ink-soft);font-size:.88rem;margin:6px 0 4px">สวัสดี <b>${acct.email||""}</b></p>
@@ -909,7 +957,7 @@ async function doActivate(){
     const {data,error} = await sb.rpc("activate_key",{k});
     if(error) throw error;
     if(data==="ok"){
-      setMsg("acct-msg","เปิดใช้งานสำเร็จ! \U0001F389","ok");
+      setMsg("acct-msg","เปิดใช้งานสำเร็จ! 🎉","ok");
       sndWin(); confetti();
       setTimeout(gate, 700);
     } else if(data==="used"){ setMsg("acct-msg","รหัสนี้ถูกใช้กับบัญชีอื่นแล้ว","err"); }
@@ -927,14 +975,14 @@ function openAdminOnline(){
   $("modal-root").innerHTML = `
   <div class="overlay" onclick="if(event.target===this)closeSetup()">
     <div class="modal wide">
-      <h2>\U0001F511 จัดการรหัส CD-Key</h2>
+      <h2>🔑 จัดการรหัส CD-Key</h2>
       <div class="statline" id="key-stats">กำลังโหลด...</div>
       <div class="adminrow">
         <span>สร้าง</span>
         <input id="gen-count" class="field" type="number" min="1" max="1000" value="10" style="width:90px;margin-top:0">
         <span>รหัส ชุด:</span>
         <input id="gen-batch" class="field" placeholder="ชื่อชุด เช่น ทีมขายสิงหาคม" style="flex:1;min-width:140px;margin-top:0">
-        <button class="btn primary" style="flex:0 0 auto;padding:8px 18px" onclick="genKeysOnline()">สร้าง \U0001F3B2</button>
+        <button class="btn primary" style="flex:0 0 auto;padding:8px 18px" onclick="genKeysOnline()">สร้าง 🎲</button>
       </div>
       <textarea id="keylist" class="keylist" readonly style="height:110px" placeholder="รหัสชุดใหม่จะแสดงที่นี่ พร้อมคัดลอกไปแจก"></textarea>
       <div class="ktwrap"><table class="kt"><thead><tr>
@@ -942,8 +990,8 @@ function openAdminOnline(){
       </tr></thead><tbody id="key-rows"><tr><td colspan="4">กำลังโหลด...</td></tr></tbody></table></div>
       <div class="mrow">
         <button class="btn ghost" onclick="closeSetup()">ปิด</button>
-        <button class="btn ghost" onclick="copyKeys()">คัดลอกรหัสใหม่ \U0001F4CB</button>
-        <button class="btn primary" onclick="exportKeysCSV()">ส่งออก CSV \U0001F4C4</button>
+        <button class="btn ghost" onclick="copyKeys()">คัดลอกรหัสใหม่ 📋</button>
+        <button class="btn primary" onclick="exportKeysCSV()">ส่งออก CSV 📄</button>
       </div>
     </div>
   </div>`;
@@ -1024,7 +1072,7 @@ function unlockOffline(){
   const bar=$("adminbar");
   if(bar && isAdminLocal()){
     bar.classList.remove("hidden");
-    $("acct-email").textContent = "\U0001F464 ผู้ดูแลระบบ";
+    $("acct-email").textContent = "👤 ผู้ดูแลระบบ";
     $("admin-keys-btn").classList.remove("hidden");
   }
 }
@@ -1036,7 +1084,7 @@ function submitKey(){
     if(!pw){msg.className="lockmsg";msg.textContent="กรอกรหัสผ่านผู้ดูแลด้านล่าง";$("pwfield").focus();return;}
     if(fnv("pw|"+LIC_SALT+"|"+pw)===ADMIN_PW_HASH){
       localStorage.setItem("vnet-license","admin");
-      msg.className="lockmsg ok";msg.textContent="ยินดีต้อนรับผู้ดูแลระบบ \U0001F389";
+      msg.className="lockmsg ok";msg.textContent="ยินดีต้อนรับผู้ดูแลระบบ 🎉";
       setTimeout(unlockOffline,400);
     } else {
       msg.className="lockmsg err";msg.textContent="รหัสผ่านไม่ถูกต้อง";
@@ -1045,7 +1093,7 @@ function submitKey(){
   }
   if(validKey(raw)){
     localStorage.setItem("vnet-license",normKey(raw));
-    msg.className="lockmsg ok";msg.textContent="ปลดล็อกสำเร็จ! \U0001F389";
+    msg.className="lockmsg ok";msg.textContent="ปลดล็อกสำเร็จ! 🎉";
     sndWin();confetti();
     setTimeout(unlockOffline,700);
   } else {
@@ -1058,15 +1106,15 @@ function openAdminOffline(){
   $("modal-root").innerHTML=`
   <div class="overlay" onclick="if(event.target===this)closeSetup()">
     <div class="modal">
-      <h2>\U0001F511 สร้างรหัส (โหมดออฟไลน์)</h2>
+      <h2>🔑 สร้างรหัส (โหมดออฟไลน์)</h2>
       <div class="adminrow">
         <select id="keycount" class="opt"><option>5</option><option selected>10</option><option>20</option><option>50</option></select>
-        <button class="btn primary" style="flex:0 0 auto;padding:8px 18px" onclick="genKeysOffline()">สร้าง \U0001F3B2</button>
+        <button class="btn primary" style="flex:0 0 auto;padding:8px 18px" onclick="genKeysOffline()">สร้าง 🎲</button>
       </div>
       <textarea id="keylist" class="keylist" readonly></textarea>
       <div class="mrow">
         <button class="btn ghost" onclick="closeSetup()">ปิด</button>
-        <button class="btn primary" onclick="copyKeys()">คัดลอก \U0001F4CB</button>
+        <button class="btn primary" onclick="copyKeys()">คัดลอก 📋</button>
       </div>
       <p style="margin-top:10px;font-size:.74rem;color:var(--muted)">หมายเหตุ: รหัสที่สร้างจากโหมดออฟไลน์ใช้กับไฟล์ออฟไลน์เท่านั้น ระบบออนไลน์ต้องสร้างผ่านเว็บ</p>
     </div>

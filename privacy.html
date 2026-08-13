@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@600;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<title>นโยบายความเป็นส่วนตัว — V-NET ติวเตอร์</title>
+<style>
+:root{--paper:#f7f1e3;--card:#fffdf6;--ink:#33415c;--ink-soft:#5a6784;--muted:#93866f;--line:#d8cfae;--blue:#3563c9;--marker:#ffd93b;--shadow:4px 4px 0 rgba(51,65,92,.12)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Sarabun','Noto Sans Thai',-apple-system,sans-serif;background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(51,65,92,.045) 31px 32px),var(--paper);color:var(--ink);line-height:1.8}
+.wrap{max-width:720px;margin:0 auto;padding:30px 18px 80px}
+h1{font-family:'Mali',sans-serif;font-size:1.6rem;display:inline-block;background:linear-gradient(transparent 58%,var(--marker) 58% 92%,transparent 92%);padding:0 .3em;transform:rotate(-.5deg);margin-bottom:6px}
+.updated{color:var(--muted);font-size:.82rem;margin-bottom:24px}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:14px;box-shadow:var(--shadow);padding:24px 22px;margin-bottom:18px}
+h2{font-family:'Mali',sans-serif;font-size:1.05rem;margin-bottom:8px}
+p,li{font-size:.95rem;color:var(--ink)}
+ul{padding-left:22px;margin:6px 0}
+a{color:var(--blue)}
+.back{display:inline-block;margin-top:20px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔏 นโยบายความเป็นส่วนตัว</h1>
+  <div class="updated">V-NET ติวเตอร์ • ปรับปรุงล่าสุด 12 สิงหาคม 2569</div>
+
+  <div class="card">
+    <h2>1. ข้อมูลที่เราเก็บ</h2>
+    <ul>
+      <li><b>อีเมล</b> — ใช้สำหรับสมัครสมาชิก เข้าสู่ระบบ และกู้คืนรหัสผ่าน</li>
+      <li><b>รหัสผ่าน</b> — จัดเก็บแบบเข้ารหัส (hash) เราไม่สามารถอ่านรหัสผ่านของคุณได้</li>
+      <li><b>ข้อมูลการใช้รหัส CD-Key</b> — รหัสที่คุณเปิดใช้งาน และวันเวลาที่เปิดใช้</li>
+      <li><b>รหัสอุปกรณ์แบบสุ่ม</b> — ใช้ตรวจสอบว่าบัญชีถูกใช้งานทีละ 1 เครื่อง ไม่สามารถระบุตัวตนหรือติดตามอุปกรณ์ของคุณนอกแอปได้</li>
+      <li><b>คะแนนและสถิติการฝึก</b> — เก็บไว้ในเครื่องของคุณเท่านั้น (localStorage) ไม่ได้ส่งขึ้นเซิร์ฟเวอร์</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>2. วัตถุประสงค์การใช้ข้อมูล</h2>
+    <p>เราใช้ข้อมูลข้างต้นเพื่อยืนยันตัวตนผู้ใช้ จัดการสิทธิ์การใช้งานตามรหัส CD-Key และป้องกันการใช้บัญชีร่วมกัน เท่านั้น เราไม่ขาย ไม่ให้เช่า และไม่เปิดเผยข้อมูลส่วนบุคคลของคุณแก่บุคคลที่สามเพื่อการโฆษณา</p>
+  </div>
+
+  <div class="card">
+    <h2>3. การจัดเก็บข้อมูล</h2>
+    <p>ข้อมูลบัญชีจัดเก็บบนบริการ Supabase (เซิร์ฟเวอร์ภูมิภาคเอเชียตะวันออกเฉียงใต้) ซึ่งมีมาตรการรักษาความปลอดภัยตามมาตรฐานสากล การเข้าถึงข้อมูลถูกจำกัดด้วยนโยบายสิทธิ์ระดับแถว (Row Level Security)</p>
+  </div>
+
+  <div class="card">
+    <h2>4. สิทธิ์ของคุณ (ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562)</h2>
+    <p>คุณมีสิทธิ์ขอเข้าถึง แก้ไข หรือลบข้อมูลส่วนบุคคลของคุณได้ตลอดเวลา โดยติดต่อผู้ดูแลระบบที่อีเมลด้านล่าง เราจะดำเนินการภายใน 30 วัน</p>
+  </div>
+
+  <div class="card">
+    <h2>5. คุกกี้และการจัดเก็บในเครื่อง</h2>
+    <p>แอปใช้ localStorage ของเบราว์เซอร์เพื่อจดจำการเข้าสู่ระบบ คะแนนฝึก และการตั้งค่า ไม่มีการใช้คุกกี้ติดตามเพื่อการโฆษณา</p>
+  </div>
+
+  <div class="card">
+    <h2>6. ติดต่อผู้ดูแลระบบ</h2>
+    <p>คำถามหรือคำขอเกี่ยวกับข้อมูลส่วนบุคคล: <a href="mailto:bossza9000@gmail.com">bossza9000@gmail.com</a></p>
+  </div>
+
+  <a class="back" href="index.html">← กลับหน้าหลัก</a>
+</div>
+</body>
+</html>
