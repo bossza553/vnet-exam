@@ -790,9 +790,21 @@ function showAppUI(){ $("lock").classList.add("hidden"); $("app").classList.remo
 /* --- online: Supabase accounts --- */
 function initAccount(){
   sb = window.supabase.createClient(SB_URL, SB_KEY);
-  /* arriving via an auth email link (password reset etc.) counts as an explicit
-     login, so it claims the single active session instead of being kicked */
-  if(/type=recovery|access_token=|[?&#]code=/.test(location.hash + location.search)) justLoggedIn = true;
+  /* arriving via a password-reset email link: claim the single active session
+     (counts as explicit login) AND force the new-password form to win the race
+     against the normal login flow */
+  if(/type=recovery/.test(location.hash) || /[?&]code=/.test(location.search)){
+    justLoggedIn = true;
+    recoveryMode = true;
+    setTimeout(()=>{
+      if(recoveryMode){
+        $("lock-legacy").classList.add("hidden");
+        $("lock-account").classList.remove("hidden");
+        renderNewPassword();
+        showLockUI();
+      }
+    }, 1200);
+  }
   $("lock-legacy").classList.add("hidden");
   $("lock-account").classList.remove("hidden");
   sb.auth.onAuthStateChange((event)=>{
@@ -827,6 +839,7 @@ async function gate(){
       return;
     }
     acct = {licensed:!!st.licensed, is_admin:!!st.is_admin, email:st.email||session.user.email};
+    if(recoveryMode) return; /* recovery form arrived mid-flight — let it win */
     if(acct.is_admin){ unlockOnline(); return; }
     if(acct.licensed){
       const hb = await heartbeat(justLoggedIn);
