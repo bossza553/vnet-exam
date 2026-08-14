@@ -790,6 +790,9 @@ function showAppUI(){ $("lock").classList.add("hidden"); $("app").classList.remo
 /* --- online: Supabase accounts --- */
 function initAccount(){
   sb = window.supabase.createClient(SB_URL, SB_KEY);
+  /* arriving via an auth email link (password reset etc.) counts as an explicit
+     login, so it claims the single active session instead of being kicked */
+  if(/type=recovery|access_token=|[?&#]code=/.test(location.hash + location.search)) justLoggedIn = true;
   $("lock-legacy").classList.add("hidden");
   $("lock-account").classList.remove("hidden");
   sb.auth.onAuthStateChange((event)=>{
@@ -936,6 +939,7 @@ async function doSetNewPassword(){
     if(error) throw error;
     setMsg("acct-msg","เปลี่ยนรหัสผ่านสำเร็จ! กำลังพาเข้าสู่ระบบ...","ok");
     recoveryMode = false;
+    justLoggedIn = true; /* continue on this device after reset */
     setTimeout(gate, 800);
   }catch(e){ setMsg("acct-msg","เกิดข้อผิดพลาด: "+e.message,"err"); }
 }
