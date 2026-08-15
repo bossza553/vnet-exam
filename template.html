@@ -195,6 +195,49 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .passage .blank{display:inline-block;min-width:3.2em;text-align:center;border-bottom:2px solid var(--ink);padding:0 4px;font-weight:700;font-family:var(--body)}
 .passage .blank.cur{background:var(--marker);border-bottom-color:var(--red);color:var(--red);border-radius:3px 3px 0 0}
 .passage .blank.done{color:var(--good);border-bottom-color:var(--good)}
+.passage .psrc{font-size:.72rem;color:var(--muted);text-align:right;margin-top:6px;font-style:italic}
+/* --- graphic reading materials --- */
+.phtml{font-family:var(--body);font-size:.95rem;line-height:1.6;color:var(--ink)}
+.phtml .sign{width:190px;margin:8px auto;border:2px solid #222;border-radius:10px;overflow:hidden;background:#fff;text-align:center;font-family:Arial,Helvetica,sans-serif}
+.phtml .sign-icon{font-size:4rem;padding:16px 8px 8px;line-height:1}
+.phtml .sign-cap{background:#111;color:#fff;font-weight:800;padding:10px 8px;font-size:1.05rem;line-height:1.25}
+.phtml .sign.warn .sign-cap{background:#f4c400;color:#111}
+.phtml .sign.danger .sign-cap{background:#c62828}
+.phtml .sign.safe .sign-cap{background:#2e7d32}
+.phtml table,.phtml .tbl{border-collapse:collapse;width:100%;font-size:.85rem;margin:6px 0;background:#fff}
+.phtml th,.phtml td{border:1px solid #444;padding:5px 7px;text-align:left}
+.phtml th{background:#2b2b2b;color:#fff;font-weight:700}
+.phtml tr:nth-child(even) td{background:#f1f1f1}
+.phtml .label{width:270px;margin:8px auto;border:2px solid #000;padding:8px 10px;background:#fff;font-family:Helvetica,Arial,sans-serif;color:#000}
+.phtml .label h4{font-size:1.5rem;font-weight:900;margin:0 0 2px;border-bottom:8px solid #000;padding-bottom:4px;letter-spacing:-.5px}
+.phtml .label-row{display:flex;justify-content:space-between;border-bottom:1px solid #000;padding:2px 0;font-size:.85rem}
+.phtml .label-row.thick{border-bottom:5px solid #000}
+.phtml .label-row.ind{padding-left:14px}
+.phtml .label small{font-size:.72rem;display:block;margin-top:4px}
+.phtml .poster{border:2px solid #222;background:#fff;padding:16px 18px;margin:8px auto;max-width:400px;font-family:Arial,Helvetica,sans-serif;color:#111}
+.phtml .poster-title{font-size:1.9rem;font-weight:900;line-height:1.05;margin:4px 0 6px}
+.phtml .poster .tag{display:inline-block;background:#111;color:#fff;font-weight:700;padding:4px 10px;border-radius:4px;margin:4px 0 8px}
+.phtml .poster ul{margin:6px 0 6px 18px}
+.phtml .poster .contact{background:#111;color:#fff;display:inline-block;padding:4px 10px;border-radius:6px;margin-top:8px;font-size:.85rem}
+.phtml .letter{background:#fbf7ea;border:1px solid #d9cfa8;padding:16px 20px;margin:8px auto;max-width:460px;font-family:'Mali','Segoe Print','Comic Sans MS',cursive;font-size:.95rem;line-height:1.7;box-shadow:2px 2px 0 rgba(0,0,0,.08)}
+.phtml .letter .brand{text-align:center;font-weight:700;font-size:1.1rem;margin-bottom:8px;letter-spacing:.06em}
+.phtml .chat{max-width:420px;margin:8px auto;background:#e9ebee;border-radius:12px;padding:10px 12px}
+.phtml .chat-line{display:flex;flex-direction:column;margin:6px 0}
+.phtml .chat-line .chat-name{font-size:.72rem;color:#666;margin-bottom:2px}
+.phtml .chat-line span.b{background:#fff;border-radius:12px;padding:7px 11px;max-width:85%;display:inline-block;font-size:.9rem;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.phtml .chat-line.me{align-items:flex-end}
+.phtml .chat-line.me span.b{background:#9ee37d}
+.phtml .menu{background:#fff;border:2px solid #222;padding:12px 16px;margin:8px auto;max-width:400px;font-family:Georgia,serif}
+.phtml .menu h4{text-align:center;font-size:1.3rem;margin:0 0 8px;letter-spacing:.08em}
+.phtml .menu .mrow{display:flex;justify-content:space-between;border-bottom:1px dotted #999;padding:3px 0;font-size:.92rem}
+.phtml .notice{background:#fff;border:3px double #222;padding:14px 18px;margin:8px auto;max-width:460px;font-family:Arial,Helvetica,sans-serif}
+.phtml .notice h4{text-align:center;font-size:1.15rem;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em}
+.phtml .article{font-family:Georgia,'Times New Roman',serif;font-size:.98rem;line-height:1.75}
+.phtml .article h4{font-family:Georgia,serif;font-size:1.05rem;text-align:center;margin:0 0 8px}
+.phtml .article p{margin:0 0 8px;text-indent:1.5em}
+.phtml .card{background:#fff;border:2px solid #222;padding:12px 16px;margin:8px auto;max-width:420px;font-family:Arial,Helvetica,sans-serif;font-size:.9rem}
+.phtml .card h4{margin:0 0 6px;font-size:1.05rem}
+.phtml .card .krow{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:2px 0}
 /* ===== audio (listening) ===== */
 .audio-box{margin-top:16px;background:var(--card2);border:2px dashed var(--blue);border-radius:12px;padding:14px}
 .audio-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -483,7 +526,8 @@ function renderQ(){
   $("q-section").textContent = q.from || q.section || "";
   stopSpeech();
   const audio = parseAudio(q.q);
-  const qLabel = q.passage ? `${S.i+1}. ข้อ (${q.n}) — เลือกคำที่เหมาะสมที่สุดเติมในช่องว่าง` : `${S.i+1}. ${audio ? audio.question : q.q}`;
+  const isCloze = q.passage && /^\(\d+\)$/.test((q.q||"").trim());
+  const qLabel = isCloze ? `${S.i+1}. ข้อ (${q.n}) — เลือกคำที่เหมาะสมที่สุดเติมในช่องว่าง` : `${S.i+1}. ${audio ? audio.question : q.q}`;
   $("q-text").textContent = qLabel;
   renderPassage(q);
   renderAudioBox(audio, q);
@@ -581,6 +625,17 @@ function renderPassage(q){
   const box = $("q-passage");
   if(!q.passage || !window.PASSAGES || !PASSAGES[q.passage]){ box.innerHTML=""; return; }
   const p = PASSAGES[q.passage];
+  if(p.html){  /* rich/graphic material (reading): render as-is */
+    const multi = S.qs.filter(x=>x.passage===q.passage).length;
+    box.innerHTML = `<div class="passage">
+      ${p.title?`<div class="ptitle">${escapeHtml(p.title)}</div>`:""}
+      ${p.instructions?`<div class="pinstr">Directions: ${escapeHtml(p.instructions)}</div>`:""}
+      <div class="phtml">${p.html}</div>
+      ${p.source?`<div class="psrc">source: ${escapeHtml(p.source)}</div>`:""}
+      ${multi>1?`<div class="psrc" style="text-align:left">ข้อ ${S.qs.filter(x=>x.passage===q.passage).map(x=>x.n).join(", ")} ใช้เอกสารนี้ร่วมกัน</div>`:""}
+    </div>`;
+    return;
+  }
   const answered = {};
   S.qs.forEach(x=>{ if(x.passage===q.passage && x.picked!==null && (S.mode==="exam" || x.picked===x.answer)) answered[x.n]=x.choices[x.picked]; });
   const html = escapeHtml(p.text).replace(/\((\d+)\)/g,(m,num)=>{
@@ -718,7 +773,7 @@ function finishQuiz(){
     ${wrong.length ? `<button class="btn primary" style="max-width:320px;margin:0 auto" onclick="$('rev').classList.toggle('hidden')">📖 ทบทวนข้อที่ผิด (${wrong.length})</button>` : ""}
     <div class="review ${S.mode==="exam"?"":"hidden"}" id="rev">
       ${wrong.map(q=>`<div class="rq">
-        <div class="st no">✗ ${q.passage ? "ข้อ ("+q.n+") ใน "+((window.PASSAGES||{})[q.passage]||{}).title : q.q}</div>
+        <div class="st no">✗ ${(q.passage && /^\(\d+\)$/.test((q.q||"").trim())) ? "ข้อ ("+q.n+") ใน "+(((window.PASSAGES||{})[q.passage]||{}).title||"เอกสาร") : q.q}</div>
         <p>คำตอบของคุณ: ${q.picked!==null ? labelOf(q,q.picked)+". "+q.choices[q.picked] : "— ไม่ได้ตอบ"}</p>
         <p style="color:var(--good)">เฉลย: ${labelOf(q,q.answer)}. ${q.choices[q.answer]}</p>
         <div class="ex">💡 ${q.explanation || "ไม่มีคำอธิบายเพิ่มเติม"}</div>
