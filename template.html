@@ -196,6 +196,18 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .passage .blank.cur{background:var(--marker);border-bottom-color:var(--red);color:var(--red);border-radius:3px 3px 0 0}
 .passage .blank.done{color:var(--good);border-bottom-color:var(--good)}
 .passage .psrc{font-size:.72rem;color:var(--muted);text-align:right;margin-top:6px;font-style:italic}
+/* --- listening script (conversation / talk / announcement) --- */
+.lscript{margin:6px 0 14px;background:#fffef8;border:2px solid var(--ink);border-radius:6px;padding:12px 16px;box-shadow:3px 3px 0 rgba(51,65,92,.10)}
+.lscript .lhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.lscript .llabel{font-family:var(--display);font-weight:700;font-size:.95rem}
+.lscript .llabel b{color:var(--blue)}
+.lscript .lfor{font-size:.78rem;color:var(--muted)}
+.lscript .lbody{font-family:Georgia,'Times New Roman',serif;font-size:.97rem;line-height:1.7}
+.lscript .lturn{display:grid;grid-template-columns:minmax(70px,auto) 1fr;gap:4px 12px;align-items:baseline}
+.lscript .lturn .who{font-weight:700;color:var(--ink-soft);white-space:nowrap}
+.lscript .lmono p{margin:0 0 6px;text-indent:1.2em}
+.lscript .laudio{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.lscript .lhint{font-size:.76rem;color:var(--muted);margin-top:6px}
 /* --- speaking dialogue script --- */
 .dialog{margin:6px 0 14px;background:#fffef8;border:2px solid var(--ink);border-radius:6px;padding:12px 16px 12px;box-shadow:3px 3px 0 rgba(51,65,92,.10)}
 .dialog .sit{font-family:var(--display);font-weight:700;font-size:.95rem;margin-bottom:8px}
@@ -646,11 +658,48 @@ function renderDialogue(q){
       return `<span class="who">${escapeHtml(t.speaker)}:</span>${say}`;
     }).join("")}</div></div>`;
 }
+function renderListening(q, p){
+  const box = $("q-passage");
+  const items = S.qs.filter(x=>x.passage===q.passage).map(x=>x.n);
+  const forTxt = items.length>1 ? `For items ${items[0]}–${items[items.length-1]}` : `For item ${items[0]}`;
+  const hasAudio = !!p.audio;
+  const scriptHtml = p.kind==="conversation"
+    ? `<div class="lturn">${p.script.map(t=>`<span class="who">${escapeHtml(t.speaker)}:</span><span>${escapeHtml(t.text)}</span>`).join("")}</div>`
+    : `<div class="lmono">${p.script.map(t=>`<p>${escapeHtml(t.text)}</p>`).join("")}</div>`;
+  const revealed = window.__lscriptOpen && window.__lscriptOpen[q.passage];
+  const answeredAll = S.qs.filter(x=>x.passage===q.passage).every(x=>x.picked!==null) && S.mode==="practice";
+  box.innerHTML = `<div class="lscript">
+    <div class="lhead"><span class="llabel"><b>${escapeHtml(p.label||"Conversation")}:</b> ${escapeHtml(p.title||"")}</span><span class="lfor">${forTxt}</span></div>
+    ${hasAudio ? `<div class="laudio">
+        <button class="playbtn" onclick="playPassageAudio('${q.passage}')">▶️ ฟังเสียง</button>
+        <button class="scriptbtn" onclick="toggleLScript('${q.passage}')">📜 ${revealed||answeredAll ? "ซ่อนบทพูด" : "ดูบทพูด"}</button>
+      </div>` : ""}
+    <div class="lbody ${hasAudio && !(revealed||answeredAll) ? "hidden" : ""}" id="lbody">${scriptHtml}</div>
+    ${hasAudio ? `<div class="lhint">ฟังได้หลายรอบ • ลองตอบโดยไม่เปิดบทพูดเพื่อฝึกการฟังจริง</div>` : `<div class="lhint">🎧 ส่วนนี้จะมีไฟล์เสียงให้ฟังเร็ว ๆ นี้ — ตอนนี้ให้อ่านบทสนทนาแล้วตอบคำถาม</div>`}
+  </div>`;
+}
+function toggleLScript(pid){
+  window.__lscriptOpen = window.__lscriptOpen || {};
+  window.__lscriptOpen[pid] = !window.__lscriptOpen[pid];
+  renderPassage(S.qs[S.i]);
+}
+function playPassageAudio(pid){
+  const p = PASSAGES[pid]; if(!p || !p.audio) return;
+  stopSpeech();
+  const btn = document.querySelector(".lscript .playbtn");
+  const src = p.audio.startsWith("data:") ? p.audio : (window.AUDIO_BASE || "audio/") + p.audio;
+  audioEl = new Audio(src);
+  audioEl.onplay = ()=>btn && btn.classList.add("playing");
+  audioEl.onended = ()=>btn && btn.classList.remove("playing");
+  audioEl.onerror = ()=>{ btn && btn.classList.remove("playing"); };
+  audioEl.play().catch(()=>{});
+}
 function renderPassage(q){
   const box = $("q-passage");
   if(q.dialogue && q.dialogue.length){ renderDialogue(q); return; }
   if(!q.passage || !window.PASSAGES || !PASSAGES[q.passage]){ box.innerHTML=""; return; }
   const p = PASSAGES[q.passage];
+  if(p.script){ renderListening(q, p); return; }
   if(p.html){  /* rich/graphic material (reading): render as-is */
     const multi = S.qs.filter(x=>x.passage===q.passage).length;
     box.innerHTML = `<div class="passage">
@@ -699,6 +748,7 @@ function pick(idx, btn){
       <p>${q.explanation || "ไม่มีคำอธิบายเพิ่มเติมสำหรับข้อนี้"}</p></div>`;
     const sc = $("q-script"); if(sc) sc.classList.remove("hidden");
     if(q.dialogue) renderDialogue(q); /* show the chosen line in the script */
+    if(q.passage && window.PASSAGES && PASSAGES[q.passage] && PASSAGES[q.passage].script) renderPassage(q); /* reveal transcript when passage fully answered */
     $("fifty").classList.add("hidden");
     if(S.i===S.qs.length-1){ $("nextbtn").textContent = "ดูสรุปผล 🏁"; }
     $("nextbtn").classList.remove("hidden");
