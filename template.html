@@ -186,6 +186,15 @@ button{font-family:inherit;cursor:pointer;border:none;color:inherit}
 canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .footer-note{text-align:center;color:var(--muted);font-size:.78rem;margin-top:44px}
 
+/* ===== shared passage (writing/reading cloze) ===== */
+.passage{margin:4px 0 14px;background:#fffef8;border:2px solid var(--ink);border-radius:6px;padding:14px 16px;box-shadow:3px 3px 0 rgba(51,65,92,.10);position:relative}
+.passage::before{content:"";position:absolute;top:-8px;left:22px;width:60px;height:16px;background:rgba(255,217,59,.55);border:1px solid rgba(51,65,92,.12);border-radius:2px;transform:rotate(-2deg)}
+.passage .ptitle{font-family:var(--display);font-weight:700;text-align:center;font-size:1rem;margin-bottom:6px}
+.passage .pinstr{font-size:.82rem;color:var(--ink-soft);margin-bottom:8px;font-style:italic}
+.passage .ptext{font-family:Georgia,'Times New Roman',serif;font-size:.98rem;line-height:1.75;white-space:pre-wrap;color:var(--ink)}
+.passage .blank{display:inline-block;min-width:3.2em;text-align:center;border-bottom:2px solid var(--ink);padding:0 4px;font-weight:700;font-family:var(--body)}
+.passage .blank.cur{background:var(--marker);border-bottom-color:var(--red);color:var(--red);border-radius:3px 3px 0 0}
+.passage .blank.done{color:var(--good);border-bottom-color:var(--good)}
 /* ===== audio (listening) ===== */
 .audio-box{margin-top:16px;background:var(--card2);border:2px dashed var(--blue);border-radius:12px;padding:14px}
 .audio-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -292,6 +301,7 @@ table.kt{width:100%;border-collapse:collapse;font-size:.78rem}
     <div class="progress"><i id="q-progress" style="width:0%"></i></div>
     <div class="qcard" id="qcard">
       <div class="qsec" id="q-section"></div>
+      <div id="q-passage"></div>
       <div class="qtext" id="q-text"></div>
       <div id="q-audio"></div>
       <div class="choices" id="q-choices"></div>
@@ -435,7 +445,15 @@ function startQuiz(){
     const s = EXAM_DATA.subjects.find(x=>x.id===setup.subj);
     pool = s.questions.map(q=>({...q, labels:s.labels, from:""}));
   }
-  if(setup.shuffleQ) pool = shuffled(pool);
+  /* passage-based (cloze) questions travel as ordered blocks: shuffle blocks, never split them */
+  const blocks=[], byPassage={};
+  pool.forEach(q=>{
+    if(q.passage){ if(!byPassage[q.passage]){byPassage[q.passage]=[]; blocks.push(byPassage[q.passage]);} byPassage[q.passage].push(q); }
+    else blocks.push([q]);
+  });
+  let ordered = setup.shuffleQ ? shuffled(blocks) : blocks;
+  pool = [];
+  for(const b of ordered){ if(pool.length>=setup.n) break; pool.push(...b.sort((a,c)=>a.n-c.n)); }
   pool = pool.slice(0, setup.n);
   pool = pool.map(q=>{
     let idx = q.choices.map((_,i)=>i);
@@ -465,7 +483,9 @@ function renderQ(){
   $("q-section").textContent = q.from || q.section || "";
   stopSpeech();
   const audio = parseAudio(q.q);
-  $("q-text").textContent = `${S.i+1}. ${audio ? audio.question : q.q}`;
+  const qLabel = q.passage ? `${S.i+1}. ข้อ (${q.n}) — เลือกคำที่เหมาะสมที่สุดเติมในช่องว่าง` : `${S.i+1}. ${audio ? audio.question : q.q}`;
+  $("q-text").textContent = qLabel;
+  renderPassage(q);
   renderAudioBox(audio, q);
   $("q-expl").innerHTML = "";
   $("nextbtn").classList.add("hidden");
@@ -554,6 +574,25 @@ function renderAudioBox(audio, q){
     <div class="script hidden" id="q-script">"${audio.script}"</div>
     <div class="audio-hint">${ttsOK ? "ฟังได้หลายรอบ • ลองตอบโดยไม่เปิดบทพูดเพื่อฝึกการฟังจริง" : "เบราว์เซอร์นี้ไม่รองรับเสียงพูด — กด ดูบทพูด เพื่ออ่านแทน"}</div>
   </div>`;
+}
+/* ===== shared passage rendering ===== */
+function escapeHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function renderPassage(q){
+  const box = $("q-passage");
+  if(!q.passage || !window.PASSAGES || !PASSAGES[q.passage]){ box.innerHTML=""; return; }
+  const p = PASSAGES[q.passage];
+  const answered = {};
+  S.qs.forEach(x=>{ if(x.passage===q.passage && x.picked!==null && (S.mode==="exam" || x.picked===x.answer)) answered[x.n]=x.choices[x.picked]; });
+  const html = escapeHtml(p.text).replace(/\((\d+)\)/g,(m,num)=>{
+    const n=+num;
+    if(n===q.n) return `<span class="blank cur">(${n})</span>`;
+    if(answered[n]!==undefined) return `<span class="blank done">${escapeHtml(answered[n])}</span>`;
+    return `<span class="blank">(${n})</span>`;
+  });
+  box.innerHTML = `<div class="passage">
+    ${p.title?`<div class="ptitle">${escapeHtml(p.title)}</div>`:""}
+    ${p.instructions?`<div class="pinstr">Directions: ${escapeHtml(p.instructions)}</div>`:""}
+    <div class="ptext">${html}</div></div>`;
 }
 function labelOf(q, origIdx){ return q.labels[q.order.indexOf(origIdx)]; }
 function pick(idx, btn){
@@ -679,7 +718,7 @@ function finishQuiz(){
     ${wrong.length ? `<button class="btn primary" style="max-width:320px;margin:0 auto" onclick="$('rev').classList.toggle('hidden')">📖 ทบทวนข้อที่ผิด (${wrong.length})</button>` : ""}
     <div class="review ${S.mode==="exam"?"":"hidden"}" id="rev">
       ${wrong.map(q=>`<div class="rq">
-        <div class="st no">✗ ${q.q}</div>
+        <div class="st no">✗ ${q.passage ? "ข้อ ("+q.n+") ใน "+((window.PASSAGES||{})[q.passage]||{}).title : q.q}</div>
         <p>คำตอบของคุณ: ${q.picked!==null ? labelOf(q,q.picked)+". "+q.choices[q.picked] : "— ไม่ได้ตอบ"}</p>
         <p style="color:var(--good)">เฉลย: ${labelOf(q,q.answer)}. ${q.choices[q.answer]}</p>
         <div class="ex">💡 ${q.explanation || "ไม่มีคำอธิบายเพิ่มเติม"}</div>
