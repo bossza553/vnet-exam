@@ -196,6 +196,16 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .passage .blank.cur{background:var(--marker);border-bottom-color:var(--red);color:var(--red);border-radius:3px 3px 0 0}
 .passage .blank.done{color:var(--good);border-bottom-color:var(--good)}
 .passage .psrc{font-size:.72rem;color:var(--muted);text-align:right;margin-top:6px;font-style:italic}
+/* --- speaking dialogue script --- */
+.dialog{margin:6px 0 14px;background:#fffef8;border:2px solid var(--ink);border-radius:6px;padding:12px 16px 12px;box-shadow:3px 3px 0 rgba(51,65,92,.10)}
+.dialog .sit{font-family:var(--display);font-weight:700;font-size:.95rem;margin-bottom:8px}
+.dialog .sit b{color:var(--red)}
+.dialog .turn{display:grid;grid-template-columns:minmax(80px,auto) 1fr;gap:6px 12px;font-family:Georgia,'Times New Roman',serif;font-size:.98rem;line-height:1.7;align-items:baseline}
+.dialog .turn .who{font-weight:700;color:var(--ink-soft);white-space:nowrap}
+.dialog .turn .say{color:var(--ink)}
+.dialog .turn .say.blank{display:inline-block;min-width:200px;border-bottom:2px solid var(--red);background:var(--marker-soft);border-radius:3px 3px 0 0;height:1.4em;vertical-align:bottom;position:relative}
+.dialog .turn .say.blank::after{content:"?";position:absolute;right:8px;top:-2px;color:var(--red);font-weight:800;font-family:var(--body)}
+.dialog .turn .say.filled{color:var(--good);font-weight:700}
 /* --- graphic reading materials --- */
 .phtml{font-family:var(--body);font-size:.95rem;line-height:1.6;color:var(--ink)}
 .phtml .sign{max-width:100%;margin:8px auto;text-align:center;font-family:Arial,Helvetica,sans-serif;word-wrap:break-word}
@@ -528,7 +538,8 @@ function renderQ(){
   stopSpeech();
   const audio = parseAudio(q.q);
   const isCloze = q.passage && /^\(\d+\)$/.test((q.q||"").trim());
-  const qLabel = isCloze ? `${S.i+1}. ข้อ (${q.n}) — เลือกคำที่เหมาะสมที่สุดเติมในช่องว่าง` : `${S.i+1}. ${audio ? audio.question : q.q}`;
+  const qLabel = q.dialogue ? `${S.i+1}. เลือกประโยคที่เหมาะสมที่สุดเติมในบทสนทนา`
+    : isCloze ? `${S.i+1}. ข้อ (${q.n}) — เลือกคำที่เหมาะสมที่สุดเติมในช่องว่าง` : `${S.i+1}. ${audio ? audio.question : q.q}`;
   $("q-text").textContent = qLabel;
   renderPassage(q);
   renderAudioBox(audio, q);
@@ -622,8 +633,22 @@ function renderAudioBox(audio, q){
 }
 /* ===== shared passage rendering ===== */
 function escapeHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function renderDialogue(q){
+  const box = $("q-passage");
+  const filled = (q.picked!==null && (S.mode==="exam" || q.picked===q.answer)) ? q.choices[q.picked] : null;
+  box.innerHTML = `<div class="dialog">
+    <div class="sit"><b>Situation:</b> ${escapeHtml(q.situation||"")}</div>
+    <div class="turn">${q.dialogue.map(t=>{
+      const isBlank = /^_{4,}$/.test((t.text||"").trim());
+      const say = isBlank
+        ? (filled ? `<span class="say filled">${escapeHtml(filled)}</span>` : `<span class="say blank"></span>`)
+        : `<span class="say">${escapeHtml(t.text)}</span>`;
+      return `<span class="who">${escapeHtml(t.speaker)}:</span>${say}`;
+    }).join("")}</div></div>`;
+}
 function renderPassage(q){
   const box = $("q-passage");
+  if(q.dialogue && q.dialogue.length){ renderDialogue(q); return; }
   if(!q.passage || !window.PASSAGES || !PASSAGES[q.passage]){ box.innerHTML=""; return; }
   const p = PASSAGES[q.passage];
   if(p.html){  /* rich/graphic material (reading): render as-is */
@@ -673,6 +698,7 @@ function pick(idx, btn){
       <h4>${good ? "🎉 ถูกต้อง!" : "❌ ยังไม่ถูก — เฉลยคือ "+labelOf(q,q.answer)+"."}</h4>
       <p>${q.explanation || "ไม่มีคำอธิบายเพิ่มเติมสำหรับข้อนี้"}</p></div>`;
     const sc = $("q-script"); if(sc) sc.classList.remove("hidden");
+    if(q.dialogue) renderDialogue(q); /* show the chosen line in the script */
     $("fifty").classList.add("hidden");
     if(S.i===S.qs.length-1){ $("nextbtn").textContent = "ดูสรุปผล 🏁"; }
     $("nextbtn").classList.remove("hidden");
@@ -774,7 +800,7 @@ function finishQuiz(){
     ${wrong.length ? `<button class="btn primary" style="max-width:320px;margin:0 auto" onclick="$('rev').classList.toggle('hidden')">📖 ทบทวนข้อที่ผิด (${wrong.length})</button>` : ""}
     <div class="review ${S.mode==="exam"?"":"hidden"}" id="rev">
       ${wrong.map(q=>`<div class="rq">
-        <div class="st no">✗ ${(q.passage && /^\(\d+\)$/.test((q.q||"").trim())) ? "ข้อ ("+q.n+") ใน "+(((window.PASSAGES||{})[q.passage]||{}).title||"เอกสาร") : q.q}</div>
+        <div class="st no">✗ ${q.dialogue ? "Situation: "+q.situation : (q.passage && /^\(\d+\)$/.test((q.q||"").trim())) ? "ข้อ ("+q.n+") ใน "+(((window.PASSAGES||{})[q.passage]||{}).title||"เอกสาร") : q.q}</div>
         <p>คำตอบของคุณ: ${q.picked!==null ? labelOf(q,q.picked)+". "+q.choices[q.picked] : "— ไม่ได้ตอบ"}</p>
         <p style="color:var(--good)">เฉลย: ${labelOf(q,q.answer)}. ${q.choices[q.answer]}</p>
         <div class="ex">💡 ${q.explanation || "ไม่มีคำอธิบายเพิ่มเติม"}</div>
