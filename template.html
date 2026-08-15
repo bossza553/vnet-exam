@@ -198,9 +198,10 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:98}
 .passage .psrc{font-size:.72rem;color:var(--muted);text-align:right;margin-top:6px;font-style:italic}
 /* --- graphic reading materials --- */
 .phtml{font-family:var(--body);font-size:.95rem;line-height:1.6;color:var(--ink)}
-.phtml .sign{width:190px;margin:8px auto;border:2px solid #222;border-radius:10px;overflow:hidden;background:#fff;text-align:center;font-family:Arial,Helvetica,sans-serif}
-.phtml .sign-icon{font-size:4rem;padding:16px 8px 8px;line-height:1}
-.phtml .sign-cap{background:#111;color:#fff;font-weight:800;padding:10px 8px;font-size:1.05rem;line-height:1.25}
+.phtml .sign{max-width:100%;margin:8px auto;text-align:center;font-family:Arial,Helvetica,sans-serif;word-wrap:break-word}
+.phtml .sign-icon{line-height:1}
+.phtml .sign-cap{font-weight:800;line-height:1.25;word-wrap:break-word}
+.phtml *{max-width:100%;box-sizing:border-box}
 .phtml .sign.warn .sign-cap{background:#f4c400;color:#111}
 .phtml .sign.danger .sign-cap{background:#c62828}
 .phtml .sign.safe .sign-cap{background:#2e7d32}
