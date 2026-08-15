@@ -662,7 +662,7 @@ function renderListening(q, p){
   const box = $("q-passage");
   const items = S.qs.filter(x=>x.passage===q.passage).map(x=>x.n);
   const forTxt = items.length>1 ? `For items ${items[0]}–${items[items.length-1]}` : `For item ${items[0]}`;
-  const hasAudio = !!p.audio;
+  const hasAudio = !!p.audio || (Array.isArray(p.audioParts) && p.audioParts.some(Boolean));
   const scriptHtml = p.kind==="conversation"
     ? `<div class="lturn">${p.script.map(t=>`<span class="who">${escapeHtml(t.speaker)}:</span><span>${escapeHtml(t.text)}</span>`).join("")}</div>`
     : `<div class="lmono">${p.script.map(t=>`<p>${escapeHtml(t.text)}</p>`).join("")}</div>`;
@@ -684,15 +684,23 @@ function toggleLScript(pid){
   renderPassage(S.qs[S.i]);
 }
 function playPassageAudio(pid){
-  const p = PASSAGES[pid]; if(!p || !p.audio) return;
+  const p = PASSAGES[pid]; if(!p) return;
   stopSpeech();
   const btn = document.querySelector(".lscript .playbtn");
-  const src = p.audio.startsWith("data:") ? p.audio : (window.AUDIO_BASE || "audio/") + p.audio;
-  audioEl = new Audio(src);
-  audioEl.onplay = ()=>btn && btn.classList.add("playing");
-  audioEl.onended = ()=>btn && btn.classList.remove("playing");
-  audioEl.onerror = ()=>{ btn && btn.classList.remove("playing"); };
-  audioEl.play().catch(()=>{});
+  const base = (window.AUDIO_BASE || "audio/");
+  const list = p.audio ? [p.audio] : (p.audioParts||[]).filter(Boolean);
+  if(!list.length) return;
+  let i = 0;
+  const playNext = ()=>{
+    if(i >= list.length){ btn && btn.classList.remove("playing"); audioEl=null; return; }
+    const src = list[i].startsWith("data:") ? list[i] : base + list[i];
+    audioEl = new Audio(src);
+    audioEl.onplay = ()=>btn && btn.classList.add("playing");
+    audioEl.onended = ()=>{ i++; setTimeout(playNext, i<list.length ? 550 : 0); }; /* short pause between speakers */
+    audioEl.onerror = ()=>{ i++; playNext(); };
+    audioEl.play().catch(()=>{ i++; playNext(); });
+  };
+  playNext();
 }
 function renderPassage(q){
   const box = $("q-passage");
