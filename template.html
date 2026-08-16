@@ -374,6 +374,7 @@ table.kt{width:100%;border-collapse:collapse;font-size:.78rem}
       <div id="q-expl"></div>
       <div class="qactions">
         <button class="lifeline" id="fifty" onclick="useFifty()">✂️ 50:50 <span id="fifty-n">×3</span></button>
+        <button class="btn primary hidden" id="confirmbtn" onclick="confirmPick()">ยืนยันคำตอบ ✓</button>
         <button class="btn primary hidden" id="nextbtn" onclick="nextQ()">ข้อถัดไป →</button>
         <button class="btn ghost hidden" id="skipbtn" onclick="nextQ()">ข้าม →</button>
         <button class="btn primary hidden" id="submitbtn" onclick="finishQuiz()">ส่งคำตอบ ✅</button>
@@ -557,6 +558,7 @@ function renderQ(){
   renderAudioBox(audio, q);
   $("q-expl").innerHTML = "";
   $("nextbtn").classList.add("hidden");
+  pending = null; $("confirmbtn").classList.add("hidden");
   $("skipbtn").classList.toggle("hidden", S.mode!=="exam");
   $("submitbtn").classList.add("hidden");
   $("fifty").classList.toggle("hidden", S.mode!=="practice");
@@ -733,10 +735,26 @@ function renderPassage(q){
     <div class="ptext">${html}</div></div>`;
 }
 function labelOf(q, origIdx){ return q.labels[q.order.indexOf(origIdx)]; }
+let pending = null;   /* tentative choice awaiting confirmation (practice mode) */
 function pick(idx, btn){
+  const q = S.qs[S.i];
+  if(S.mode==="practice" && q.picked===null && pending!==idx){
+    /* first tap (or tap on a different choice): just highlight + show confirm */
+    pending = idx; sndClick();
+    [...$("q-choices").children].forEach((b,pos)=>b.classList.toggle("picked", q.order[pos]===idx));
+    const cb=$("confirmbtn"); cb.classList.remove("hidden");
+    cb.textContent = "ยืนยันคำตอบ "+labelOf(q,idx)+" ✓";
+    return;
+  }
+  commitPick(idx);
+}
+function confirmPick(){ if(pending!==null) commitPick(pending); }
+function commitPick(idx){
   const q = S.qs[S.i];
   if(S.mode==="practice"){
     if(q.picked!==null) return;
+    pending = null; $("confirmbtn").classList.add("hidden");
+    [...$("q-choices").children].forEach(b=>b.classList.remove("picked"));
     q.picked = idx;
     const good = idx===q.answer;
     if(good){ S.correct++; S.streak++; S.maxStreak=Math.max(S.maxStreak,S.streak); sndGood();
@@ -790,6 +808,7 @@ function renderPalette(){
 function useFifty(){
   const q = S.qs[S.i];
   if(S.fifty<=0 || q.picked!==null) return;
+  pending = null;
   S.fifty--;
   const wrongs = shuffled(q.order.filter(i=>i!==q.answer && !q.removed.includes(i))).slice(0,2);
   q.removed.push(...wrongs);
@@ -908,7 +927,8 @@ document.addEventListener("keydown", e=>{
   if(e.key>="1" && e.key<="5"){
     const pos = +e.key-1, btns = $("q-choices").children;
     if(btns[pos] && !btns[pos].disabled) btns[pos].click();
-  } else if(e.key==="Enter" && !$("nextbtn").classList.contains("hidden")){ nextQ(); }
+  } else if(e.key==="Enter" && !$("confirmbtn").classList.contains("hidden")){ confirmPick(); }
+  else if(e.key==="Enter" && !$("nextbtn").classList.contains("hidden")){ nextQ(); }
 });
 
 /* ===== CD-key license: online accounts + offline legacy lock ===== */
