@@ -341,7 +341,7 @@ table.kt{width:100%;border-collapse:collapse;font-size:.78rem}
       <button class="topbtn" onclick="lockDevice()">🚪 ออกจากระบบ</button>
     </div>
     <div id="trialbar" class="hidden" style="text-align:center;margin:-6px 0 14px">
-      <span class="pill flame">🎁 โหมดทดลองใช้ — เหลืออีก <b id="trialleft">…</b></span>
+      <span class="pill flame">🎁 โหมดทดลองใช้ — ทำได้ 5 ข้อแรกของแต่ละวิชา</span>
       <button class="topbtn" onclick="openBuy()">ปลดล็อกถาวร 🔑</button>
     </div>
     <div class="statbar">
@@ -470,7 +470,8 @@ function openSetup(id){
   const s = id==="mix" ? {title:"จับฉลากรวมทุกวิชา", subtitle:"คละทุกสมรรถนะ", icon:"🎲",
       questions:{length:EXAM_DATA.subjects.reduce((a,x)=>a+x.questions.length,0)}}
     : EXAM_DATA.subjects.find(x=>x.id===id);
-  const total = s.questions.length;
+  const fullTotal = s.questions.length;
+  const total = isDemo() ? Math.min(fullTotal, id==="mix" ? EXAM_DATA.subjects.length*DEMO_PER_SUBJECT : DEMO_PER_SUBJECT) : fullTotal;
   const counts = [10,20,30,total>=100?50:total].filter((v,i,a)=>v<=total && a.indexOf(v)===i);
   if(!counts.includes(total) && total<=60) counts.push(total);
   setup.n = counts.includes(20)?20:counts[0];
@@ -479,7 +480,7 @@ function openSetup(id){
   <div class="overlay" onclick="if(event.target===this)closeSetup()">
     <div class="modal">
       <h2>${s.icon} ${s.title}</h2>
-      <div class="sub">${s.subtitle} • มีทั้งหมด ${total} ข้อ</div>
+      <div class="sub">${s.subtitle} • ${isDemo() ? `Demo ${total} จาก ${fullTotal} ข้อ` : `มีทั้งหมด ${total} ข้อ`}</div>
       <div class="optlabel">โหมด</div>
       <div class="optrow" id="mode-row">
         <button class="opt ${setup.mode==="practice"?"sel":""}" onclick="setMode('practice')">📖 ฝึกฝน (เฉลยทันที)</button>
@@ -509,12 +510,13 @@ function shuffled(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=
 function startQuiz(){
   closeSetup();
   let pool, labels;
+  const demoSlice = qs => isDemo() ? qs.slice(0, DEMO_PER_SUBJECT) : qs;
   if(setup.subj==="mix"){
-    pool = EXAM_DATA.subjects.flatMap(s=>s.questions.map(q=>({...q, labels:s.labels, from:s.icon+" "+s.title})));
+    pool = EXAM_DATA.subjects.flatMap(s=>demoSlice(s.questions).map(q=>({...q, labels:s.labels, from:s.icon+" "+s.title})));
     labels = null;
   } else {
     const s = EXAM_DATA.subjects.find(x=>x.id===setup.subj);
-    pool = s.questions.map(q=>({...q, labels:s.labels, from:""}));
+    pool = demoSlice(s.questions).map(q=>({...q, labels:s.labels, from:""}));
   }
   /* passage-based (cloze) questions travel as ordered blocks: shuffle blocks, never split them */
   const blocks=[], byPassage={};
@@ -842,14 +844,16 @@ function finishQuiz(){
   const secs = Math.floor((Date.now()-S.start)/1000);
   const time = String(Math.floor(secs/60)).padStart(2,"0")+":"+String(secs%60).padStart(2,"0");
 
-  // save stats
+  // save stats (not in demo)
   const st = store.get();
+  if(isDemo()){ /* skip persistence */ } else {
   st.best = st.best||{}; st.log = st.log||{};
   if(pct > (st.best[S.subj] ?? -1)) st.best[S.subj] = pct;
   const lg = st.log[S.subj] || {a:0,c:0};
   lg.a += n; lg.c += S.correct; st.log[S.subj] = lg;
   st.maxStreak = Math.max(st.maxStreak||0, S.maxStreak);
   store.set(st);
+  }
 
   const verdict = pct===100 ? ["🏆 สมบูรณ์แบบ!","var(--warn)"]
     : pct>=80 ? ["🌟 เยี่ยมมาก!","var(--good)"]
@@ -879,6 +883,11 @@ function finishQuiz(){
       <div class="stat"><b>${wrong.length}</b><span>ข้อที่ผิด/ข้าม</span></div>
     </div>
     ${wrong.length ? `<button class="btn primary" style="max-width:320px;margin:0 auto" onclick="$('rev').classList.toggle('hidden')">📖 ทบทวนข้อที่ผิด (${wrong.length})</button>` : ""}
+    ${isDemo() ? `<div style="margin:18px auto 0;max-width:420px;padding:14px 16px;border:2px dashed var(--red);border-radius:12px;background:var(--marker-soft);text-align:center">
+        <div style="font-family:var(--display);font-weight:700">🎁 นี่คือโหมดทดลอง (${DEMO_PER_SUBJECT} ข้อแรกของแต่ละวิชา)</div>
+        <div style="font-size:.9rem;margin:4px 0 10px">ชอบไหม? ปลดล็อกครบ 660 ข้อ + เสียง Listening จริง + โหมดสอบเสมือนจริง</div>
+        <button class="btn primary" style="max-width:260px;margin:0 auto" onclick="openBuy()">ปลดล็อกถาวร 🔑</button>
+      </div>` : ""}
     <div class="review ${S.mode==="exam"?"":"hidden"}" id="rev">
       ${wrong.map(q=>`<div class="rq">
         <div class="st no">✗ ${q.dialogue ? "Situation: "+q.situation : (q.passage && /^\(\d+\)$/.test((q.q||"").trim())) ? "ข้อ ("+q.n+") ใน "+(((window.PASSAGES||{})[q.passage]||{}).title||"เอกสาร") : q.q}</div>
@@ -1041,12 +1050,11 @@ async function gate(){
       setMsg("acct-msg","ระบบฐานข้อมูลยังไม่พร้อม (ยังไม่ได้รัน SQL setup)","err");
       return;
     }
-    acct = {licensed:!!st.licensed, is_admin:!!st.is_admin, email:st.email||session.user.email,
-            trial_active:!!st.trial_active, trial_ends_at:st.trial_ends_at||null,
-            trial_used: !!st.trial_ends_at};
+    acct = {licensed:!!st.licensed, is_admin:!!st.is_admin, email:st.email||session.user.email};
     if(recoveryMode) return; /* recovery form arrived mid-flight — let it win */
     if(acct.is_admin){ unlockOnline(); return; }
-    if(acct.licensed || acct.trial_active){
+    if(!acct.licensed && sessionStorage.getItem("vnet-demo")==="1"){ acct.demo=true; unlockOnline(); return; }
+    if(acct.licensed){
       const hb = await heartbeat(justLoggedIn);
       justLoggedIn = false;
       if(hb === "taken"){ kickSession(); return; }
@@ -1071,15 +1079,12 @@ function unlockOnline(){
     $("acct-email").textContent = "👤 "+(acct.email||"");
     $("admin-keys-btn").classList.toggle("hidden", !acct.is_admin);
     const tb=$("trialbar");
-    if(tb){
-      if(!acct.licensed && !acct.is_admin && acct.trial_active){
-        tb.classList.remove("hidden"); tickTrial();
-        if(window.__trialTimer) clearInterval(window.__trialTimer);
-        window.__trialTimer=setInterval(tickTrial,60000);
-      } else tb.classList.add("hidden");
-    }
+    if(tb) tb.classList.toggle("hidden", !acct.demo);
   }
 }
+const DEMO_PER_SUBJECT = 5;
+function isDemo(){ return !!(acct && acct.demo); }
+function startDemo(){ sessionStorage.setItem("vnet-demo","1"); sndWin(); confetti(); setTimeout(gate,500); }
 function openBuy(){
   $("modal-root").innerHTML=`
   <div class="overlay" onclick="if(event.target===this)closeSetup()">
@@ -1106,23 +1111,8 @@ async function buyActivate(){
     else { msg.className="lockmsg err"; msg.textContent = data==="used"?"รหัสนี้ถูกใช้กับบัญชีอื่นแล้ว": data==="revoked"?"รหัสนี้ถูกระงับ":"รหัสไม่ถูกต้อง"; }
   }catch(e){ msg.className="lockmsg err"; msg.textContent="เกิดข้อผิดพลาด: "+e.message; }
 }
-function tickTrial(){
-  const el=$("trialleft"); if(!el||!acct.trial_ends_at) return;
-  const ms=new Date(acct.trial_ends_at)-Date.now();
-  if(ms<=0){ clearInterval(window.__trialTimer); gate(); return; }
-  const h=Math.floor(ms/3600000), m=Math.floor((ms%3600000)/60000);
-  el.textContent = h>0 ? `${h} ชม. ${m} นาที` : `${m} นาที`;
-}
-async function startTrial(){
-  setMsg("acct-msg","กำลังเปิดโหมดทดลองใช้...");
-  try{
-    const {data,error}=await sb.rpc("start_trial");
-    if(error) throw error;
-    if(data && data.ok){ sndWin(); confetti(); setTimeout(gate,600); }
-    else if(data && data.reason==="used"){ setMsg("acct-msg","บัญชีนี้ใช้สิทธิ์ทดลอง 24 ชม. ไปแล้ว — กรอกรหัส CD-Key เพื่อใช้งานต่อ","err"); }
-    else { setMsg("acct-msg","เปิดทดลองไม่สำเร็จ ลองใหม่อีกครั้ง","err"); }
-  }catch(e){ setMsg("acct-msg","ระบบทดลองยังไม่พร้อม (ยังไม่ได้รัน SQL) : "+e.message,"err"); }
-}
+function tickTrial(){}
+async function startTrial(){ startDemo(); }
 function setMsg(id, text, cls){
   const el=$(id); if(!el) return;
   el.className = "lockmsg"+(cls?" "+cls:"");
@@ -1219,11 +1209,9 @@ function renderActivate(){
     <input id="f-key" class="keyinput" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
     <div class="lockmsg" id="acct-msg"></div>
     <button class="btn primary" style="width:100%" onclick="doActivate()">เปิดใช้งานบัญชี ✨</button>
-    ${acct.trial_used
-      ? `<div style="margin-top:14px;padding:10px 12px;border:2px dashed var(--red);border-radius:10px;font-size:.85rem;color:var(--ink-soft)">⏰ สิทธิ์ทดลองใช้ฟรี 24 ชม. ของบัญชีนี้หมดแล้ว<br>ชอบไหม? ปลดล็อกครบ 660 ข้อ ด้วยรหัส CD-Key — ติดต่อผู้ดูแลเพื่อสั่งซื้อ</div>`
-      : `<div style="margin:16px 0 4px;font-size:.78rem;color:var(--muted)">— หรือ —</div>
-         <button class="btn ghost" style="width:100%;border-color:var(--good);color:var(--good)" onclick="startTrial()">🎁 ทดลองใช้ฟรี 24 ชั่วโมง</button>
-         <div style="font-size:.74rem;color:var(--muted);margin-top:6px">ใช้งานได้ครบทุกฟีเจอร์ 1 วันเต็ม • บัญชีละ 1 ครั้ง</div>`}
+    <div style="margin:16px 0 4px;font-size:.78rem;color:var(--muted)">— หรือ —</div>
+    <button class="btn ghost" style="width:100%;border-color:var(--good);color:var(--good)" onclick="startDemo()">🎁 ทดลองใช้ฟรี (Demo)</button>
+    <div style="font-size:.74rem;color:var(--muted);margin-top:6px">ลองทำได้ ${DEMO_PER_SUBJECT} ข้อแรกของทุกวิชา ครบทุกฟีเจอร์ ไม่จำกัดเวลา</div>
     <button class="linky" onclick="lockDevice()">ออกจากระบบ / ใช้บัญชีอื่น</button>`;
   $("f-key").addEventListener("keydown",e=>{if(e.key==="Enter")doActivate();});
 }
@@ -1404,6 +1392,7 @@ function genKeysOffline(){
 function lockDevice(){
   if(ONLINE_GATE){
     if(!confirm("ออกจากระบบ? (สถิติคะแนนในเครื่องนี้จะไม่หาย)"))return;
+    sessionStorage.removeItem("vnet-demo");
     sb.auth.signOut().finally(()=>location.reload());
     return;
   }
