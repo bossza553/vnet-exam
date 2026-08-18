@@ -1146,7 +1146,19 @@ function authErrTh(m){
   if(m.includes("invalid format")||m.includes("Unable to validate email")) return "รูปแบบอีเมลไม่ถูกต้อง";
   return "เกิดข้อผิดพลาด: "+m;
 }
+/* --- abuse throttling (client side; server-side limits live in Supabase Auth settings) --- */
+const RL = { fails:0, until:0, last:0 };
+function throttled(minGapMs){
+  const now=Date.now();
+  if(now < RL.until){ return Math.ceil((RL.until-now)/1000); }
+  if(now - RL.last < minGapMs){ return Math.ceil((minGapMs-(now-RL.last))/1000) || 1; }
+  RL.last = now; return 0;
+}
+function noteFail(){ RL.fails++; if(RL.fails>=5){ RL.until = Date.now() + 60000*Math.min(10, RL.fails-4); } }
+function noteOk(){ RL.fails=0; RL.until=0; }
 async function doAuth(kind){
+  const wait = throttled(1500);
+  if(wait){ setMsg("acct-msg", `กรุณารอ ${wait} วินาทีแล้วลองใหม่`, "err"); return; }
   const email=($("f-email").value||"").trim().toLowerCase(), pass=$("f-pass").value;
   if(!email||!pass){ setMsg("acct-msg","กรอกอีเมลและรหัสผ่านให้ครบ","err"); return; }
   setMsg("acct-msg","กำลังดำเนินการ...");
@@ -1163,11 +1175,14 @@ async function doAuth(kind){
       if(error) throw error;
       justLoggedIn = true; /* explicit login claims the single active session */
     }
+    noteOk();
     /* onAuthStateChange -> gate() */
-  }catch(e){ setMsg("acct-msg", authErrTh(e.message), "err"); }
+  }catch(e){ noteFail(); setMsg("acct-msg", authErrTh(e.message), "err"); }
 }
 function legalBase(){ return location.pathname.includes("/subjects/") ? "../" : ""; }
 async function doForgot(){
+  const wait = throttled(30000);   /* reset emails: max one per 30s from this device */
+  if(wait){ setMsg("acct-msg", `ส่งอีเมลได้อีกครั้งใน ${wait} วินาที`, "err"); return; }
   const email=($("f-email").value||"").trim().toLowerCase();
   if(!email){ setMsg("acct-msg","กรอกอีเมลของคุณในช่องด้านบนก่อน แล้วกด ลืมรหัสผ่าน อีกครั้ง","err"); return; }
   setMsg("acct-msg","กำลังส่งลิงก์รีเซ็ต...");
@@ -1216,6 +1231,8 @@ function renderActivate(){
   $("f-key").addEventListener("keydown",e=>{if(e.key==="Enter")doActivate();});
 }
 async function doActivate(){
+  const wait = throttled(1500);
+  if(wait){ setMsg("acct-msg", `กรุณารอ ${wait} วินาทีแล้วลองใหม่`, "err"); return; }
   const k=($("f-key").value||"").trim();
   if(!k){ setMsg("acct-msg","กรอกรหัส CD-Key ก่อน","err"); return; }
   setMsg("acct-msg","กำลังตรวจสอบรหัส...");
@@ -1226,9 +1243,9 @@ async function doActivate(){
       setMsg("acct-msg","เปิดใช้งานสำเร็จ! 🎉","ok");
       sndWin(); confetti();
       setTimeout(gate, 700);
-    } else if(data==="used"){ setMsg("acct-msg","รหัสนี้ถูกใช้กับบัญชีอื่นแล้ว","err"); }
-    else if(data==="revoked"){ setMsg("acct-msg","รหัสนี้ถูกระงับการใช้งาน","err"); }
-    else { setMsg("acct-msg","รหัสไม่ถูกต้อง ตรวจสอบอีกครั้ง","err"); }
+    } else if(data==="used"){ noteFail(); setMsg("acct-msg","รหัสนี้ถูกใช้กับบัญชีอื่นแล้ว","err"); }
+    else if(data==="revoked"){ noteFail(); setMsg("acct-msg","รหัสนี้ถูกระงับการใช้งาน","err"); }
+    else { noteFail(); setMsg("acct-msg","รหัสไม่ถูกต้อง ตรวจสอบอีกครั้ง","err"); }
   }catch(e){ setMsg("acct-msg","เกิดข้อผิดพลาด: "+e.message,"err"); }
 }
 
