@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 
 <title>💻 สมรรถนะเทคโนโลยีดิจิทัล — ข้อสอบ V-NET 80 ข้อ</title>
 <style>
@@ -947,6 +948,30 @@ document.addEventListener("keydown", e=>{
 /* ===== CD-key license: online accounts + offline legacy lock ===== */
 const SB_URL = "https://npobptbcnxsonbevfgrr.supabase.co";
 const SB_KEY = "sb_publishable_QrGVV8UQ5OKEez3NKduI2g_5bfg7ksn";
+const TURNSTILE_SITE_KEY = "0x4AAAAAAETtKmkCltLfOnM-";
+let tsWidgetId = null, tsToken = null;
+function tsHolder(){
+  let h=$("ts-holder");
+  if(!h){ h=document.createElement("div"); h.id="ts-holder"; h.style.cssText="margin-top:10px;display:flex;justify-content:center"; }
+  return h;
+}
+function tsMount(){
+  /* place the widget inside the current auth form; render (or re-render) it */
+  const body=$("acct-body"); if(!body) return;
+  const h=tsHolder(); if(h.parentNode!==body) body.appendChild(h);
+  if(!window.turnstile){ setTimeout(tsMount, 300); return; }
+  if(tsWidgetId!==null){ try{ turnstile.remove(tsWidgetId); }catch(e){} tsWidgetId=null; }
+  tsToken=null;
+  tsWidgetId = turnstile.render(h, { sitekey: TURNSTILE_SITE_KEY, theme:"light", size:"normal",
+    callback: t=>{ tsToken=t; }, "expired-callback": ()=>{ tsToken=null; }, "error-callback": ()=>{ tsToken=null; } });
+}
+async function tsGetToken(){
+  if(tsToken) return tsToken;
+  if(!window.turnstile){ return null; }               /* script blocked/offline: let Supabase decide */
+  for(let i=0;i<40 && !tsToken;i++) await new Promise(r=>setTimeout(r,250));  /* wait up to 10s for challenge */
+  return tsToken;
+}
+function tsReset(){ if(window.turnstile && tsWidgetId!==null){ try{ turnstile.reset(tsWidgetId); }catch(e){} } tsToken=null; }
 const ONLINE_GATE = (location.protocol === "https:" || location.hostname === "localhost") && !!window.supabase;
 let sb = null, acct = {licensed:false, is_admin:false, email:null};
 let justLoggedIn = false, hbTimer = null, recoveryMode = false;
@@ -1132,6 +1157,7 @@ function renderAuth(tab){
     ${tab==="login"?'<button class="linky" onclick="doForgot()">ลืมรหัสผ่าน?</button>':""}
     <p style="margin-top:12px;font-size:.72rem;color:var(--muted)">การใช้งานถือว่ายอมรับ <a href="${legalBase()}terms.html" target="_blank" style="color:var(--blue)">ข้อกำหนดการใช้งาน</a> และ <a href="${legalBase()}privacy.html" target="_blank" style="color:var(--blue)">นโยบายความเป็นส่วนตัว</a></p>`;
   const p=$("f-pass"); p.addEventListener("keydown",e=>{if(e.key==="Enter")doAuth(tab);});
+  tsMount();
   if(sessionStorage.getItem("vnet-kicked")){
     sessionStorage.removeItem("vnet-kicked");
     setMsg("acct-msg","บัญชีนี้ถูกเข้าสู่ระบบจากเครื่องอื่น ระบบจึงออกจากระบบเครื่องนี้อัตโนมัติ (1 บัญชีใช้ได้ทีละ 1 เครื่อง)","err");
@@ -1144,6 +1170,7 @@ function authErrTh(m){
   if(m.includes("at least 6")) return "รหัสผ่านต้องยาว 6 ตัวขึ้นไป";
   if(m.includes("not confirmed")) return "บัญชียังไม่ยืนยันอีเมล เช็คกล่องจดหมายของคุณ";
   if(m.includes("invalid format")||m.includes("Unable to validate email")) return "รูปแบบอีเมลไม่ถูกต้อง";
+  if(/captcha/i.test(m)) return "การยืนยันตัวตน (CAPTCHA) ไม่ผ่าน กรุณารอสักครู่แล้วลองใหม่";
   return "เกิดข้อผิดพลาด: "+m;
 }
 /* --- abuse throttling (client side; server-side limits live in Supabase Auth settings) --- */
@@ -1163,21 +1190,22 @@ async function doAuth(kind){
   if(!email||!pass){ setMsg("acct-msg","กรอกอีเมลและรหัสผ่านให้ครบ","err"); return; }
   setMsg("acct-msg","กำลังดำเนินการ...");
   try{
+    const captchaToken = await tsGetToken();
     if(kind==="signup"){
-      const {data,error} = await sb.auth.signUp({email, password:pass});
+      const {data,error} = await sb.auth.signUp({email, password:pass, options:{captchaToken}});
       if(error) throw error;
       if(!data.session){
         setMsg("acct-msg","สมัครสำเร็จ! ระบบส่งลิงก์ยืนยันไปที่อีเมลของคุณ กรุณากดยืนยันก่อนเข้าสู่ระบบ","ok");
         return;
       }
     } else {
-      const {error} = await sb.auth.signInWithPassword({email, password:pass});
+      const {error} = await sb.auth.signInWithPassword({email, password:pass, options:{captchaToken}});
       if(error) throw error;
       justLoggedIn = true; /* explicit login claims the single active session */
     }
     noteOk();
     /* onAuthStateChange -> gate() */
-  }catch(e){ noteFail(); setMsg("acct-msg", authErrTh(e.message), "err"); }
+  }catch(e){ noteFail(); tsReset(); setMsg("acct-msg", authErrTh(e.message), "err"); }
 }
 function legalBase(){ return location.pathname.includes("/subjects/") ? "../" : ""; }
 async function doForgot(){
@@ -1187,7 +1215,9 @@ async function doForgot(){
   if(!email){ setMsg("acct-msg","กรอกอีเมลของคุณในช่องด้านบนก่อน แล้วกด ลืมรหัสผ่าน อีกครั้ง","err"); return; }
   setMsg("acct-msg","กำลังส่งลิงก์รีเซ็ต...");
   try{
-    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname});
+    const captchaToken = await tsGetToken();
+    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname, captchaToken});
+    tsReset();
     if(error) throw error;
     setMsg("acct-msg","ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว — เช็คกล่องจดหมาย (และถังสแปม)","ok");
   }catch(e){
