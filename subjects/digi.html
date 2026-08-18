@@ -1063,7 +1063,10 @@ async function gate(){
   if(gateBusy) return; gateBusy=true;
   try{
     const {data:{session}} = await sb.auth.getSession();
-    if(!session){ renderAuth("login"); showLockUI(); return; }
+    if(!session){
+      if(sessionStorage.getItem("vnet-demo")==="1"){ acct={licensed:false,is_admin:false,email:null,demo:true}; unlockOnline(); return; }
+      renderAuth("login"); showLockUI(); return;
+    }
     let st=null;
     try{
       const {data,error} = await sb.rpc("my_status");
@@ -1101,7 +1104,7 @@ function unlockOnline(){
   const bar=$("adminbar");
   if(bar){
     bar.classList.remove("hidden");
-    $("acct-email").textContent = "👤 "+(acct.email||"");
+    $("acct-email").textContent = acct.email ? "👤 "+acct.email : "🎁 โหมดทดลอง (ยังไม่ได้เข้าสู่ระบบ)";
     $("admin-keys-btn").classList.toggle("hidden", !acct.is_admin);
     const tb=$("trialbar");
     if(tb) tb.classList.toggle("hidden", !acct.demo);
@@ -1116,13 +1119,19 @@ function openBuy(){
     <div class="modal">
       <h2>🔑 ปลดล็อกแบบถาวร</h2>
       <div class="sub">ครบ 660 ข้อ ทุกสมรรถนะ • ฟังเสียง Listening จริง • ไม่มีวันหมดอายุ</div>
-      <p style="font-size:.92rem;margin:8px 0 12px">รับรหัส CD-Key จากผู้ดูแล แล้วนำมากรอกในหน้า "เปิดใช้งานบัญชี" ได้ทันที</p>
-      <input id="buy-key" class="keyinput" placeholder="มีรหัสแล้ว? กรอกที่นี่" autocomplete="off" spellcheck="false">
+      ${(acct&&acct.email) ? `
+      <p style="font-size:.92rem;margin:8px 0 12px">มีรหัส CD-Key จากหนังสือแล้ว? กรอกที่นี่ได้ทันที</p>
+      <input id="buy-key" class="keyinput" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
       <div class="lockmsg" id="buy-msg"></div>
       <div class="mrow">
         <button class="btn ghost" onclick="closeSetup()">ปิด</button>
         <button class="btn primary" onclick="buyActivate()">เปิดใช้งาน ✨</button>
-      </div>
+      </div>` : `
+      <p style="font-size:.92rem;margin:8px 0 12px">มีรหัส CD-Key จากหนังสือแล้ว? สมัครสมาชิก (ฟรี) แล้วกรอกรหัสได้เลย</p>
+      <div class="mrow">
+        <button class="btn ghost" onclick="closeSetup()">ปิด</button>
+        <button class="btn primary" onclick="sessionStorage.removeItem('vnet-demo');location.reload()">สมัคร / เข้าสู่ระบบ ✨</button>
+      </div>`}
       <p style="margin-top:12px;font-size:.78rem;color:var(--muted)">ติดต่อสั่งซื้อ: <a href="mailto:${ADMIN_EMAIL}" style="color:var(--blue)">${ADMIN_EMAIL}</a></p>
     </div>
   </div>`;
@@ -1155,6 +1164,9 @@ function renderAuth(tab){
     <div class="lockmsg" id="acct-msg"></div>
     <button class="btn primary" style="width:100%" onclick="doAuth('${tab}')">${tab==="login"?"เข้าสู่ระบบ ✨":"สมัครสมาชิก 🌱"}</button>
     ${tab==="login"?'<button class="linky" onclick="doForgot()">ลืมรหัสผ่าน?</button>':""}
+    <div style="margin:14px 0 4px;font-size:.78rem;color:var(--muted)">— ยังไม่มีรหัส? —</div>
+    <button class="btn ghost" style="width:100%;border-color:var(--good);color:var(--good)" onclick="startDemo()">🎁 ทดลองใช้ฟรี (Demo) — ไม่ต้องสมัคร</button>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:4px">ลองทำ ${DEMO_PER_SUBJECT} ข้อแรกของทุกวิชา ครบทุกฟีเจอร์</div>
     <p style="margin-top:12px;font-size:.72rem;color:var(--muted)">การใช้งานถือว่ายอมรับ <a href="${legalBase()}terms.html" target="_blank" style="color:var(--blue)">ข้อกำหนดการใช้งาน</a> และ <a href="${legalBase()}privacy.html" target="_blank" style="color:var(--blue)">นโยบายความเป็นส่วนตัว</a></p>`;
   const p=$("f-pass"); p.addEventListener("keydown",e=>{if(e.key==="Enter")doAuth(tab);});
   tsMount();
@@ -1452,6 +1464,7 @@ function genKeysOffline(){
 }
 function lockDevice(){
   if(ONLINE_GATE){
+    if(acct && acct.demo && !acct.email){ sessionStorage.removeItem("vnet-demo"); location.reload(); return; }
     if(!confirm("ออกจากระบบ? (สถิติคะแนนในเครื่องนี้จะไม่หาย)"))return;
     sessionStorage.removeItem("vnet-demo");
     sb.auth.signOut().finally(()=>location.reload());
