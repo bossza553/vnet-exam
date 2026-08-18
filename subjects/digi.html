@@ -1089,7 +1089,7 @@ async function gate(){
         const s = await heartbeat(false);
         if(s === "taken") kickSession();
       };
-      hbTimer = setInterval(hbCheck, 20000);
+      hbTimer = setInterval(hbCheck, 60000);
       document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) hbCheck(); });
       window.__hbCheck = hbCheck;
     }
@@ -1183,6 +1183,20 @@ function throttled(minGapMs){
 }
 function noteFail(){ RL.fails++; if(RL.fails>=5){ RL.until = Date.now() + 60000*Math.min(10, RL.fails-4); } }
 function noteOk(){ RL.fails=0; RL.until=0; }
+async function withRetry(fn, tries=4){
+  let delay=1000, last;
+  for(let i=0;i<tries;i++){
+    const res = await fn();
+    if(!res.error) return res;
+    last = res;
+    const m = String(res.error.message||"");
+    const status = res.error.status || 0;
+    const transient = status===429 || status>=500 || /rate limit|too many|timeout|network|fetch/i.test(m);
+    if(!transient) return res;             /* wrong password etc: fail fast */
+    await new Promise(r=>setTimeout(r, delay)); delay*=2;   /* 1s,2s,4s,8s */
+  }
+  return last;
+}
 async function doAuth(kind){
   const wait = throttled(1500);
   if(wait){ setMsg("acct-msg", `กรุณารอ ${wait} วินาทีแล้วลองใหม่`, "err"); return; }
@@ -1192,14 +1206,14 @@ async function doAuth(kind){
   try{
     const captchaToken = await tsGetToken();
     if(kind==="signup"){
-      const {data,error} = await sb.auth.signUp({email, password:pass, options:{captchaToken}});
+      const {data,error} = await withRetry(()=>sb.auth.signUp({email, password:pass, options:{captchaToken}}));
       if(error) throw error;
       if(!data.session){
         setMsg("acct-msg","สมัครสำเร็จ! ระบบส่งลิงก์ยืนยันไปที่อีเมลของคุณ กรุณากดยืนยันก่อนเข้าสู่ระบบ","ok");
         return;
       }
     } else {
-      const {error} = await sb.auth.signInWithPassword({email, password:pass, options:{captchaToken}});
+      const {error} = await withRetry(()=>sb.auth.signInWithPassword({email, password:pass, options:{captchaToken}}));
       if(error) throw error;
       justLoggedIn = true; /* explicit login claims the single active session */
     }
@@ -1267,7 +1281,7 @@ async function doActivate(){
   if(!k){ setMsg("acct-msg","กรอกรหัส CD-Key ก่อน","err"); return; }
   setMsg("acct-msg","กำลังตรวจสอบรหัส...");
   try{
-    const {data,error} = await sb.rpc("activate_key",{k});
+    const {data,error} = await withRetry(()=>sb.rpc("activate_key",{k}));
     if(error) throw error;
     if(data==="ok"){
       setMsg("acct-msg","เปิดใช้งานสำเร็จ! 🎉","ok");
